@@ -1,0 +1,31 @@
+[package]
+name = "lukiwiki-parser"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.93"
+license = "MIT"
+authors = ["logue"]
+description = "LukiWiki parser - Markdown superset wiki markup parser"
+repository = "https://github.com/logue/LukiWiki-rs"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2"          # WASM bindings
+comrak = "0.28"               # Markdown parser (GFM)
+ammonia = "4.0"               # HTML sanitization
+maud = "0.26"                 # Type-safe HTML generation
+regex = "1.11"                # Pattern matching
+once_cell = "1.20"            # Lazy static initialization
+unicode-segmentation = "1.12" # Grapheme cluster handling
+
+[dev-dependencies]
+insta = "1.41"            # Snapshot testing
+criterion = "0.5"         # Benchmarking
+wasm-bindgen-test = "0.3" # WASM testing
+
+[profile.release]
+opt-level = "z"   # Optimize for size
+lto = true        # Enable Link Time Optimization
+codegen-units = 1 # Better optimization

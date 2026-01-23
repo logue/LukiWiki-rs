@@ -1,0 +1,24 @@
+# Rust
+/target/
+Cargo.lock
+
+# WASM build output
+/pkg/
+/wasm-pack.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Node (if using npm for testing)
+node_modules/
+package-lock.json
+
+# Test snapshots
+*.snap.new
