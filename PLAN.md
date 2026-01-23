@@ -214,7 +214,7 @@
   - HTMLエンティティの適切な処理
 - テストスイート:
   - [tests/commonmark.rs](tests/commonmark.rs): CommonMark仕様テスト、目標75%+
-  - [tests/pukiwiki_compat.rs](tests/pukiwiki_compat.rs): PukiWiki互換性
+  - [tests/legacy_compat.rs](tests/legacy_compat.rs): LukiWiki互換性
   - [tests/php_comparison.rs](tests/php_comparison.rs): PHP実装との差分検証
   - [tests/security.rs](tests/security.rs): XSS等のセキュリティテスト
 - ベンチマーク:
@@ -328,20 +328,47 @@ lukiwiki-parser/
    - Markdown → セマンティックタグ (`<strong>`, `<em>`) - 意味的な強調
    - LukiWiki → 視覚的タグ (`<b>`, `<i>`) - 見た目の装飾
    - 違い: アクセシビリティやSEOへの影響が異なる
+   - **潜在的矛盾**: `'''text'''` (3個) がMarkdownの太字 `***text***` と視覚的に類似
 
 3. **リストマーカー**:
    - 両スタイルサポート
    - `-`, `*` → 順序なしリスト
    - `+`, `1.` → 順序付きリスト
+   - **潜在的矛盾**: LukiWikiの `+` がMarkdownでは順序なしリストに使用される場合がある
 
 4. **水平線**:
    - `----` (4+文字) 優先
    - `***`, `___` も対応
+   - **矛盾なし**: CommonMark準拠
 
 5. **テーブル**:
    - LukiWiki形式とMarkdown形式を構文で判別
    - LukiWiki: `|cell|h` (行修飾子あり)
    - Markdown: `| header |\n|---|` (区切り行あり)
+   - **矛盾なし**: 構文が明確に異なる
+
+6. **インライン装飾関数**:
+   - `&color(...)`, `&size(...)` 等
+   - **矛盾なし**: Markdownにこの構文は存在しない
+
+7. **ブロック装飾プレフィックス**:
+   - `COLOR(...): text`, `SIZE(...): text` 等
+   - **潜在的矛盾**: コロン `:` がMarkdownの定義リストと競合する可能性
+
+### Markdown仕様との矛盾箇所まとめ
+
+| LukiWiki構文  | Markdown構文        | 矛盾度 | 解決策                   |
+| ------------- | ------------------- | ------ | ------------------------ |
+| `'''text'''`  | `***text***`        | 中     | 3連続クォートを優先検出  |
+| `+ item`      | `+ item` (一部方言) | 低     | 順序付きリストとして統一 |
+| `COLOR(...):` | `: definition`      | 低     | 大文字キーワードで判別   |
+| `> ... <`     | `> quote`           | 低     | 閉じタグで判別           |
+
+**対策**:
+
+- パーサーの優先順位で明示的に処理
+- Step 4（構文競合解決）で包括的にテスト
+- 曖昧な入力に対する警告メッセージの実装
 
 ---
 
