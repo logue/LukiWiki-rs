@@ -6,9 +6,56 @@ LukiWikiのWikiパーサーをRustで再実装したプロジェクトです。C
 
 - **CommonMark準拠**: 標準Markdown構文の高い互換性
 - **LukiWiki構文サポート**: レガシーPHP実装との互換性
+- **フロントマターサポート**: YAML/TOML形式のメタデータ
 - **セキュリティ**: HTMLサニタイゼーションによるXSS対策
 - **WASM対応**: WebAssembly出力によるブラウザ実行
 - **拡張性**: プラグインシステムによる機能拡張
+
+## フロントマター
+
+ドキュメントの先頭にYAMLまたはTOML形式のメタデータを配置できます。
+
+### YAML形式
+
+```markdown
+---
+title: ドキュメントタイトル
+author: 著者名
+date: 2024-01-23
+tags:
+  - rust
+  - wiki
+---
+
+# コンテンツ
+```
+
+### TOML形式
+
+```markdown
++++
+title = "ドキュメントタイトル"
+author = "著者名"
+date = 2024-01-23
++++
+
+# コンテンツ
+```
+
+フロントマターはHTML出力から除外され、`parse_with_frontmatter()`関数を使用することで別途取得できます。
+
+```rust
+use lukiwiki_parser::parse_with_frontmatter;
+
+let input = "---\ntitle: Test\n---\n\n# Content";
+let result = parse_with_frontmatter(input);
+
+if let Some(fm) = result.frontmatter {
+    println!("Format: {:?}", fm.format); // Yaml
+    println!("Content: {}", fm.content);
+}
+println!("HTML: {}", result.html);
+```
 
 ## プラグインシステム
 
@@ -174,12 +221,12 @@ wasm-pack build --target web
 cargo test
 ```
 
-**テスト結果**: 101 tests passing
+**テスト結果**: 108 tests passing
 
-- 63 unit tests
+- 68 unit tests (including 5 frontmatter tests)
 - 18 CommonMark compliance tests
 - 13 conflict resolution tests
-- 7 doctests
+- 9 doctests
 
 ## ライセンス
 
