@@ -12,6 +12,33 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
 
+/// Convert comma-separated args to JSON array
+///
+/// # Arguments
+///
+/// * `args` - Comma-separated argument string
+///
+/// # Returns
+///
+/// JSON array string
+fn args_to_json(args: &str) -> String {
+    if args.is_empty() {
+        return "[]".to_string();
+    }
+
+    let parts: Vec<String> = args
+        .split(',')
+        .map(|s| {
+            let trimmed = s.trim();
+            // Escape quotes and backslashes in the string
+            let escaped = trimmed.replace('\\', "\\\\").replace('"', "\\\"");
+            format!("\"{}\"", escaped)
+        })
+        .collect();
+
+    format!("[{}]", parts.join(","))
+}
+
 // Block plugin patterns
 static BLOCK_PLUGIN_MULTILINE: Lazy<Regex> = Lazy::new(|| {
     // Match @function(args){{ content }} using non-greedy match
@@ -23,11 +50,36 @@ static BLOCK_PLUGIN_SINGLELINE: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"@(\w+)\(([^)]*)\)\{([^}]*)\}").unwrap()
 });
 
+// Block plugin with args only (no content): @function(args)
+static BLOCK_PLUGIN_ARGSONLY: Lazy<Regex> = Lazy::new(|| {
+    // Match @function(args) - args only, no content
+    // This should be processed AFTER patterns with { and {{
+    Regex::new(r"@(\w+)\(([^)]*)\)").unwrap()
+});
+
+// Block plugin without args: @function()
+static BLOCK_PLUGIN_NOARGS: Lazy<Regex> = Lazy::new(|| {
+    // Match @function() - parens required to distinguish from @mentions
+    Regex::new(r"@(\w+)\(\)").unwrap()
+});
+
 // Inline plugin pattern
 static INLINE_PLUGIN: Lazy<Regex> = Lazy::new(|| {
     // Match &function(args){content};
     // Content may contain nested braces for nested plugins
     Regex::new(r"&(\w+)\(([^)]*)\)\{((?:[^{}]|\{[^}]*\})*)\};").unwrap()
+});
+
+// Inline plugin with args only: &function(args);
+static INLINE_PLUGIN_ARGSONLY: Lazy<Regex> = Lazy::new(|| {
+    // Match &function(args); (no content)
+    Regex::new(r"&(\w+)\(([^)]*)\);").unwrap()
+});
+
+// Inline plugin without args: &function;
+static INLINE_PLUGIN_NOARGS: Lazy<Regex> = Lazy::new(|| {
+    // Match &function; (no args, no content)
+    Regex::new(r"&(\w+);").unwrap()
 });
 
 /// Apply plugin syntax transformation
@@ -61,7 +113,7 @@ static INLINE_PLUGIN: Lazy<Regex> = Lazy::new(|| {
 /// let input = "@toc(2){{ }}";
 /// let output = apply_plugin_syntax(input);
 /// assert!(output.contains("class=\"plugin-toc\""));
-/// assert!(output.contains("data-args=\"2\""));
+/// assert!(output.contains("data-args='[\"2\"]'"));
 ///
 /// // Inline plugin
 /// let input = "&highlight(yellow){important text};";
@@ -79,11 +131,10 @@ pub fn apply_plugin_syntax(html: &str) -> String {
             let content = caps.get(3).map_or("", |m| m.as_str());
 
             let escaped_content = content.replace('<', "&lt;").replace('>', "&gt;");
+            let json_args = args_to_json(args);
             format!(
-                "\n<div class=\"plugin-{}\" data-args=\"{}\">{}\n</div>\n",
-                function,
-                html_escape::encode_double_quoted_attribute(args),
-                escaped_content
+                "\n<div class=\"plugin-{}\" data-args='{}'>{}\n</div>\n",
+                function, json_args, escaped_content
             )
         })
         .to_string();
@@ -96,12 +147,33 @@ pub fn apply_plugin_syntax(html: &str) -> String {
             let content = caps.get(3).map_or("", |m| m.as_str());
 
             let escaped_content = content.replace('<', "&lt;").replace('>', "&gt;");
+            let json_args = args_to_json(args);
             format!(
-                "\n<div class=\"plugin-{}\" data-args=\"{}\">{}\n</div>\n",
-                function,
-                html_escape::encode_double_quoted_attribute(args),
-                escaped_content
+                "\n<div class=\"plugin-{}\" data-args='{}'>{}\n</div>\n",
+                function, json_args, escaped_content
             )
+        })
+        .to_string();
+
+    // Process block plugins (args only, no content) - @function(args)
+    result = BLOCK_PLUGIN_ARGSONLY
+        .replace_all(&result, |caps: &regex::Captures| {
+            let function = caps.get(1).map_or("", |m| m.as_str());
+            let args = caps.get(2).map_or("", |m| m.as_str());
+
+            let json_args = args_to_json(args);
+            format!(
+                "\n<div class=\"plugin-{}\" data-args='{}' />\n",
+                function, json_args
+            )
+        })
+        .to_string();
+
+    // Process block plugins (no args) - @function()
+    result = BLOCK_PLUGIN_NOARGS
+        .replace_all(&result, |caps: &regex::Captures| {
+            let function = caps.get(1).map_or("", |m| m.as_str());
+            format!("\n<div class=\"plugin-{}\" data-args='[]' />\n", function)
         })
         .to_string();
 
@@ -113,12 +185,33 @@ pub fn apply_plugin_syntax(html: &str) -> String {
             let content = caps.get(3).map_or("", |m| m.as_str());
 
             let escaped_content = content.replace('<', "&lt;").replace('>', "&gt;");
+            let json_args = args_to_json(args);
             format!(
-                "<span class=\"plugin-{}\" data-args=\"{}\">{}</span>",
-                function,
-                html_escape::encode_double_quoted_attribute(args),
-                escaped_content
+                "<span class=\"plugin-{}\" data-args='{}'>{}</span>",
+                function, json_args, escaped_content
             )
+        })
+        .to_string();
+
+    // Process inline plugins (args only) - &function(args);
+    result = INLINE_PLUGIN_ARGSONLY
+        .replace_all(&result, |caps: &regex::Captures| {
+            let function = caps.get(1).map_or("", |m| m.as_str());
+            let args = caps.get(2).map_or("", |m| m.as_str());
+
+            let json_args = args_to_json(args);
+            format!(
+                "<span class=\"plugin-{}\" data-args='{}' />",
+                function, json_args
+            )
+        })
+        .to_string();
+
+    // Process inline plugins (no args) - &function;
+    result = INLINE_PLUGIN_NOARGS
+        .replace_all(&result, |caps: &regex::Captures| {
+            let function = caps.get(1).map_or("", |m| m.as_str());
+            format!("<span class=\"plugin-{}\" data-args='[]' />", function)
         })
         .to_string();
 
@@ -134,7 +227,7 @@ mod tests {
         let input = "@toc(2){{ }}";
         let output = apply_plugin_syntax(input);
         assert!(output.contains("class=\"plugin-toc\""));
-        assert!(output.contains("data-args=\"2\""));
+        assert!(output.contains("data-args='[\"2\"]'"));
     }
 
     #[test]
@@ -142,7 +235,7 @@ mod tests {
         let input = "@calendar(2024,1,true){{ }}";
         let output = apply_plugin_syntax(input);
         assert!(output.contains("plugin-calendar"));
-        assert!(output.contains("data-args=\"2024,1,true\""));
+        assert!(output.contains("data-args='[\"2024\",\"1\",\"true\"]'"));
     }
 
     #[test]
@@ -150,7 +243,7 @@ mod tests {
         let input = "@timestamp(){{ }}";
         let output = apply_plugin_syntax(input);
         assert!(output.contains("plugin-timestamp"));
-        assert!(output.contains("data-args=\"\""));
+        assert!(output.contains("data-args='[]'"));
     }
 
     #[test]
@@ -158,7 +251,7 @@ mod tests {
         let input = "@code(rust){{ fn main() {} }}";
         let output = apply_plugin_syntax(input);
         assert!(output.contains("plugin-code"));
-        assert!(output.contains("data-args=\"rust\""));
+        assert!(output.contains("data-args='[\"rust\"]'"));
         assert!(output.contains("fn main()"));
     }
 
@@ -172,9 +265,9 @@ mod tests {
 
     #[test]
     fn test_no_plugin() {
-        let input = "This is normal text with @mention but not @plugin()";
+        let input = "This is normal text with @mention but not a plugin";
         let output = apply_plugin_syntax(input);
-        // Should not match without {{ }}
+        // @mention without parens should not match
         assert_eq!(output, input);
     }
 
@@ -183,7 +276,7 @@ mod tests {
         let input = "&highlight(yellow){important text};";
         let output = apply_plugin_syntax(input);
         assert!(output.contains("class=\"plugin-highlight\""));
-        assert!(output.contains("data-args=\"yellow\""));
+        assert!(output.contains("data-args='[\"yellow\"]'"));
         assert!(output.contains("important text"));
         assert!(output.contains("<span"));
     }
@@ -193,7 +286,7 @@ mod tests {
         let input = "@include(file.txt){default content}";
         let output = apply_plugin_syntax(input);
         assert!(output.contains("class=\"plugin-include\""));
-        assert!(output.contains("data-args=\"file.txt\""));
+        assert!(output.contains("data-args='[\"file.txt\"]'"));
         assert!(output.contains("default content"));
     }
 
@@ -221,5 +314,75 @@ mod tests {
         let output = apply_plugin_syntax(input);
         assert!(output.contains("plugin-block"));
         assert!(output.contains("plugin-inline"));
+    }
+
+    // New tests for additional patterns
+    #[test]
+    fn test_block_plugin_no_args() {
+        let input = "@toc()";
+        let output = apply_plugin_syntax(input);
+        assert!(output.contains("class=\"plugin-toc\""));
+        assert!(output.contains("data-args='[]'"));
+    }
+
+    #[test]
+    fn test_block_plugin_args_only() {
+        let input = "@feed(https://example.com/feed.atom, 10)";
+        let output = apply_plugin_syntax(input);
+        assert!(output.contains("class=\"plugin-feed\""));
+        assert!(output.contains("data-args='[\"https://example.com/feed.atom\",\"10\"]'"));
+        assert!(output.contains("/>")); // Self-closing div
+    }
+
+    #[test]
+    fn test_inline_plugin_args_only() {
+        let input = "&icon(mdi-pencil);";
+        let output = apply_plugin_syntax(input);
+        assert!(output.contains("class=\"plugin-icon\""));
+        assert!(output.contains("data-args='[\"mdi-pencil\"]'"));
+        assert!(output.contains("/>")); // Self-closing tag
+    }
+
+    #[test]
+    fn test_inline_plugin_no_args() {
+        let input = "&br;";
+        let output = apply_plugin_syntax(input);
+        assert!(output.contains("class=\"plugin-br\""));
+        assert!(output.contains("data-args='[]'"));
+        assert!(output.contains("/>")); // Self-closing tag
+    }
+
+    #[test]
+    fn test_args_to_json_empty() {
+        assert_eq!(args_to_json(""), "[]");
+    }
+
+    #[test]
+    fn test_args_to_json_single() {
+        assert_eq!(args_to_json("arg1"), "[\"arg1\"]");
+    }
+
+    #[test]
+    fn test_args_to_json_multiple() {
+        assert_eq!(
+            args_to_json("arg1,arg2,arg3"),
+            "[\"arg1\",\"arg2\",\"arg3\"]"
+        );
+    }
+
+    #[test]
+    fn test_args_to_json_with_spaces() {
+        assert_eq!(
+            args_to_json("arg1 , arg2 , arg3"),
+            "[\"arg1\",\"arg2\",\"arg3\"]"
+        );
+    }
+
+    #[test]
+    fn test_args_to_json_url() {
+        assert_eq!(
+            args_to_json("https://example.com/feed.atom, 10"),
+            "[\"https://example.com/feed.atom\",\"10\"]"
+        );
     }
 }

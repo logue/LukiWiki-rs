@@ -3,6 +3,7 @@
 **プロジェクト概要**: Markdown上位互換を目指すLukiWikiのパース処理をRustで実装する。CommonMark仕様テストを合理的にパス(75%+目標)しつつ、レガシー構文を保持する。
 
 **作成日**: 2026年1月23日
+**最終更新**: 2026年1月26日
 **Rustバージョン**: 1.93 (最新安定版)
 **ライセンス**: MIT
 
@@ -106,13 +107,38 @@
       - 例: `&lang(en){Hello};` → `<span lang="en">Hello</span>`
     - `&abbr(text){description};` - 略語説明 → `<abbr title="description">text</abbr>`
     - [src/lukiwiki/inline_decorations.rs](src/lukiwiki/inline_decorations.rs)実装完了
+  - **取り消し線構文の分離**: ✅
+    - **LukiWiki**: `%%text%%` → `<s>text</s>` (視覚的な取り消し線)
+    - **Markdown/GFM**: `~~text~~` → `<del>text</del>` (削除を意味する取り消し線)
+    - 注: 両方共取り消し線として表示されるが、HTMLの意味合いが異なる
+      - `<s>`: 正確でなくなった内容や関連性のなくなった内容
+      - `<del>`: ドキュメントから削除された内容
+    - 実装: [src/lukiwiki/inline_decorations.rs](src/lukiwiki/inline_decorations.rs)でLukiWiki形式を処理後、comrakでMarkdown形式を処理
   - **プラグインシステム** (拡張可能なWiki機能): ✅
-    - **インライン型**: `&function(args){content};`
-      - パース出力: `<span class="plugin-function" data-args="args" data-content="content">&#38;function</span>`
+    - **インライン型（完全形）**: `&function(args){content};`
+      - パース出力: `<span class="plugin-function" data-args='["arg1","arg2"]'>content</span>`
+    - **インライン型（args-only）**: `&function(args);` ✅
+      - パース出力: `<span class="plugin-function" data-args='["arg1","arg2"]' />`
+      - 例: `&icon(mdi-pencil);` → `<span class="plugin-icon" data-args='["mdi-pencil"]' />`
+    - **インライン型（no-args）**: `&function;` ✅
+      - パース出力: `<span class="plugin-function" data-args='[]' />`
+      - 例: `&br;` → `<span class="plugin-br" data-args='[]' />`
     - **ブロック型（複数行）**: `@function(args){{ content }}`
-      - パース出力: `<div class="plugin-function" data-args="args" data-content="content">@function</div>`
+      - パース出力: `<div class="plugin-function" data-args='["arg1","arg2"]'>content</div>`
     - **ブロック型（単行）**: `@function(args){content}`
-      - パース出力: `<div class="plugin-function" data-args="args" data-content="content">@function</div>`
+      - パース出力: `<div class="plugin-function" data-args='["arg1","arg2"]'>content</div>`
+    - **ブロック型（args-only）**: `@function(args)` ✅
+      - パース出力: `<div class="plugin-function" data-args='["arg1","arg2"]' />`
+      - 例: `@feed(https://example.com/feed.atom, 10)` → `<div class="plugin-feed" data-args='["https://example.com/feed.atom","10"]' />`
+      - **重要**: 括弧必須（`@function()`）で@mentionと区別
+      - **URL保護**: argsをbase64エンコードしてMarkdownパーサーのautolink機能から保護
+    - **ブロック型（no-args）**: `@function()` ✅
+      - パース出力: `<div class="plugin-function" data-args='[]' />`
+      - 例: `@toc()` → `<div class="plugin-toc" data-args='[]' />`
+      - **重要**: 括弧必須で@mentionと区別
+    - **引数形式**: ✅
+      - カンマ区切り → JSON配列に変換
+      - 出力: `data-args='["arg1","arg2"]'` (シングルクォート、JSON配列)
     - **ネストされたプラグイン呼び出しをサポート**:
       - 例: `&outer(arg1){text &inner(arg2){nested}; more};`
       - data-content属性内で内側のプラグイン構文を生のまま保持
@@ -156,15 +182,16 @@
 - LukiWiki構文パーサーモジュール群 ✅
   - emphasis.rs (5 tests)
   - block_decorations.rs (7 tests)
-  - inline_decorations.rs (9 tests)
-  - plugins.rs (11 tests)
+  - inline_decorations.rs (11 tests including strikethrough)
+  - plugins.rs (20 tests including args-only/no-args patterns)
   - frontmatter.rs (5 tests)
   - conflict_resolver.rs (11 tests including custom header ID tests)
-- レガシー構文互換性テスト ✅ (31 LukiWiki syntax tests passing)
+- レガシー構文互換性テスト ✅ (48 LukiWiki syntax tests passing)
+- プラグインパターンデモ: [examples/test_plugin_extended.rs](examples/test_plugin_extended.rs) ✅
 
-**テスト結果**: 112 tests passing
+**テスト結果**: 123 tests passing
 
-- 72 unit tests (including 5 frontmatter + 3 custom header ID tests)
+- 83 unit tests (including 5 frontmatter + 3 custom header ID + 9 new plugin tests + 2 strikethrough tests)
 - 18 CommonMark tests
 - 13 conflict resolution tests
 - 9 doctests
@@ -201,10 +228,12 @@
     - 両方サポート、ネスト時の優先順位を定義
     - 表示は同一だが、HTMLの意味合いが異なる
   - **プラグイン構文の保護**: ✅
-    - インライン: `&function(args){content};`
-    - ブロック: `@function(args){{ content }}` / `@function(args){content}`
-    - base64エンコーディングでコンテンツを安全に保持
+    - インライン: `&function(args){content};`, `&function(args);`, `&function;`
+    - ブロック: `@function(args){{ content }}`, `@function(args){content}`, `@function(args)`, `@function()`
+    - base64エンコーディングでコンテンツとargsを安全に保持
+    - URL自動リンク化の防止: argsをbase64エンコードすることでMarkdownパーサーがURLをリンク化するのを防止
     - ネストされたプラグインと内部のWiki構文を完全保護
+    - 処理順序: braces付きパターン → args-onlyパターン → no-argsパターン
   - **カスタムヘッダーID**: ✅
     - `# Header {#custom-id}` 構文のサポート
     - プリプロセスでカスタムIDを抽出・除去
@@ -405,6 +434,14 @@ lukiwiki-parser/
    - 違い: アクセシビリティやSEOへの影響が異なる
    - **潜在的矛盾**: `'''text'''` (3個) がMarkdownの太字 `***text***` と視覚的に類似
 
+2.5. **取り消し線**: ✅
+
+- 両スタイルサポート（共存）
+- Markdown/GFM → セマンティックタグ (`<del>`) - 削除された内容
+- LukiWiki → 視覚的タグ (`<s>`) - 正確でなくなった内容
+- 違い: HTMLの意味合いが異なる（視覚的 vs セマンティック）
+- **矛盾なし**: 構文が明確に異なる (`%%` vs `~~`)
+
 3. **リストマーカー**:
    - 両スタイルサポート
    - `-`, `*` → 順序なしリスト
@@ -430,6 +467,11 @@ lukiwiki-parser/
    - `COLOR(...): text`, `SIZE(...): text` 等
    - **潜在的矛盾**: コロン `:` がMarkdownの定義リストと競合する可能性
 
+8. **プラグイン構文と@mention**: ✅
+   - プラグイン: `@function()` - 括弧必須
+   - @mention: `@username` - 括弧なし
+   - **矛盾なし**: 括弧の有無で明確に区別可能
+
 ### Markdown仕様との矛盾箇所まとめ
 
 | LukiWiki構文  | Markdown構文        | 矛盾度 | 解決策                   |
@@ -438,6 +480,8 @@ lukiwiki-parser/
 | `+ item`      | `+ item` (一部方言) | 低     | 順序付きリストとして統一 |
 | `COLOR(...):` | `: definition`      | 低     | 大文字キーワードで判別   |
 | `> ... <`     | `> quote`           | 低     | 閉じタグで判別           |
+| `%%text%%`    | `~~text~~`          | 低     | 異なる構文で明確に区別   |
+| `@function()` | `@mention`          | 低     | 括弧の有無で区別         |
 
 **対策**:
 

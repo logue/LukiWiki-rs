@@ -10,6 +10,33 @@ use once_cell::sync::Lazy;
 use regex::{Captures, Regex};
 use std::collections::HashMap;
 
+/// Convert comma-separated args to JSON array
+///
+/// # Arguments
+///
+/// * `args` - Comma-separated argument string
+///
+/// # Returns
+///
+/// JSON array string
+fn args_to_json(args: &str) -> String {
+    if args.is_empty() {
+        return "[]".to_string();
+    }
+
+    let parts: Vec<String> = args
+        .split(',')
+        .map(|s| {
+            let trimmed = s.trim();
+            // Escape quotes and backslashes in the string
+            let escaped = trimmed.replace('\\', "\\\\").replace('"', "\\\"");
+            format!("\"{}\"", escaped)
+        })
+        .collect();
+
+    format!("[{}]", parts.join(","))
+}
+
 // Patterns that need special handling
 
 /// Regex to detect LukiWiki blockquote: > ... <
@@ -139,6 +166,31 @@ pub fn preprocess_conflicts(input: &str) -> (String, HeaderIdMap) {
         })
         .to_string();
 
+    // Protect inline plugins (args only): &function(args);
+    let inline_plugin_argsonly = Regex::new(r"&(\w+)\(([^)]*)\);").unwrap();
+    result = inline_plugin_argsonly
+        .replace_all(&result, |caps: &regex::Captures| {
+            let function = &caps[1];
+            let args = &caps[2];
+            format!(
+                "{{{{INLINE_PLUGIN_ARGSONLY:{}:{}:INLINE_PLUGIN_ARGSONLY}}}}",
+                function, args
+            )
+        })
+        .to_string();
+
+    // Protect inline plugins (no args): &function;
+    let inline_plugin_noargs = Regex::new(r"&(\w+);").unwrap();
+    result = inline_plugin_noargs
+        .replace_all(&result, |caps: &regex::Captures| {
+            let function = &caps[1];
+            format!(
+                "{{{{INLINE_PLUGIN_NOARGS:{}:INLINE_PLUGIN_NOARGS}}}}",
+                function
+            )
+        })
+        .to_string();
+
     // Protect block plugins multiline: @function(args){{ content }}
     // Use base64 encoding and markers to preserve content
     let block_plugin_multi = Regex::new(r"@(\w+)\(([^)]*)\)\{\{([\s\S]*?)\}\}").unwrap();
@@ -168,6 +220,23 @@ pub fn preprocess_conflicts(input: &str) -> (String, HeaderIdMap) {
             format!(
                 "{{{{BLOCK_PLUGIN:{}:{}:{}:BLOCK_PLUGIN}}}}",
                 function, args, encoded_content
+            )
+        })
+        .to_string();
+
+    // Protect block plugins (args only, no content): @function(args)
+    // This should be processed AFTER patterns with { and {{
+    let block_plugin_argsonly = Regex::new(r"@(\w+)\(([^)]*)\)").unwrap();
+    result = block_plugin_argsonly
+        .replace_all(&result, |caps: &regex::Captures| {
+            use base64::{Engine as _, engine::general_purpose};
+            let function = &caps[1];
+            let args = &caps[2];
+            // Encode args to prevent Markdown parser from converting URLs
+            let encoded_args = general_purpose::STANDARD.encode(args.as_bytes());
+            format!(
+                "{{{{BLOCK_PLUGIN_ARGSONLY:{}:{}:BLOCK_PLUGIN_ARGSONLY}}}}",
+                function, encoded_args
             )
         })
         .to_string();
@@ -260,12 +329,40 @@ pub fn postprocess_conflicts(html: &str, header_map: &HeaderIdMap) -> String {
             // Escape HTML entities in content while preserving & for nested plugins
             let escaped_content = content.replace('<', "&lt;").replace('>', "&gt;");
 
+            // Convert args to JSON array
+            let json_args = args_to_json(args);
+
             format!(
-                "<span class=\"plugin-{}\" data-args=\"{}\">{}</span>",
-                function,
-                html_escape::encode_double_quoted_attribute(args),
-                escaped_content
+                "<span class=\"plugin-{}\" data-args='{}'>{}</span>",
+                function, json_args, escaped_content
             )
+        })
+        .to_string();
+
+    // Restore inline plugins (args only)
+    let inline_plugin_argsonly_marker =
+        Regex::new(r"\{\{INLINE_PLUGIN_ARGSONLY:(\w+):([^:]*):INLINE_PLUGIN_ARGSONLY\}\}").unwrap();
+    result = inline_plugin_argsonly_marker
+        .replace_all(&result, |caps: &Captures| {
+            let function = &caps[1];
+            let args = &caps[2];
+            let json_args = args_to_json(args);
+
+            format!(
+                "<span class=\"plugin-{}\" data-args='{}' />",
+                function, json_args
+            )
+        })
+        .to_string();
+
+    // Restore inline plugins (no args)
+    let inline_plugin_noargs_marker =
+        Regex::new(r"\{\{INLINE_PLUGIN_NOARGS:(\w+):INLINE_PLUGIN_NOARGS\}\}").unwrap();
+    result = inline_plugin_noargs_marker
+        .replace_all(&result, |caps: &Captures| {
+            let function = &caps[1];
+
+            format!("<span class=\"plugin-{}\" data-args='[]' />", function)
         })
         .to_string();
 
@@ -288,11 +385,35 @@ pub fn postprocess_conflicts(html: &str, header_map: &HeaderIdMap) -> String {
             // Escape HTML entities in content while preserving & for nested plugins
             let escaped_content = content.replace('<', "&lt;").replace('>', "&gt;");
 
+            // Convert args to JSON array
+            let json_args = args_to_json(args);
+
             format!(
-                "<div class=\"plugin-{}\" data-args=\"{}\">{}</div>",
-                function,
-                html_escape::encode_double_quoted_attribute(args),
-                escaped_content
+                "<div class=\"plugin-{}\" data-args='{}'>{}</div>",
+                function, json_args, escaped_content
+            )
+        })
+        .to_string();
+
+    // Restore block plugins (args only, no content)
+    let block_plugin_argsonly_marker =
+        Regex::new(r"\{\{BLOCK_PLUGIN_ARGSONLY:(\w+):([^:]*):BLOCK_PLUGIN_ARGSONLY\}\}").unwrap();
+    result = block_plugin_argsonly_marker
+        .replace_all(&result, |caps: &Captures| {
+            use base64::{Engine as _, engine::general_purpose};
+            let function = &caps[1];
+            let encoded_args = &caps[2];
+            // Decode base64 to get original args
+            let args = general_purpose::STANDARD
+                .decode(encoded_args.as_bytes())
+                .ok()
+                .and_then(|bytes| String::from_utf8(bytes).ok())
+                .unwrap_or_else(|| encoded_args.to_string());
+            let json_args = args_to_json(&args);
+
+            format!(
+                "<div class=\"plugin-{}\" data-args='{}' />",
+                function, json_args
             )
         })
         .to_string();
@@ -301,6 +422,11 @@ pub fn postprocess_conflicts(html: &str, header_map: &HeaderIdMap) -> String {
     let wrapped_plugin =
         Regex::new(r#"<p>\s*(<div class="plugin-[^"]+"[^>]*>.*?</div>)\s*</p>"#).unwrap();
     result = wrapped_plugin.replace_all(&result, "$1").to_string();
+
+    // Remove wrapping <p> tags around self-closing block plugins
+    let wrapped_plugin_self =
+        Regex::new(r#"<p>\s*(<div class="plugin-[^"]+"[^>]*/>\s*)\s*</p>"#).unwrap();
+    result = wrapped_plugin_self.replace_all(&result, "$1").to_string();
 
     result
 }

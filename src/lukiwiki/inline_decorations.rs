@@ -7,6 +7,7 @@
 //! - &sub(text); (subscript)
 //! - &lang(locale){text};
 //! - &abbr(text){description};
+//! - %%text%% → <s>text</s> (strikethrough)
 
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -27,6 +28,9 @@ static INLINE_LANG: Lazy<Regex> =
 static INLINE_ABBR: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"&abbr\(([^)]+?)\)\{([^}]+?)\};").unwrap());
 
+/// Regex for LukiWiki strikethrough: %%text%% → <s>text</s>
+static LUKIWIKI_STRIKETHROUGH: Lazy<Regex> = Lazy::new(|| Regex::new(r"%%([^%]+)%%").unwrap());
+
 /// Apply inline decoration functions to HTML
 ///
 /// # Arguments
@@ -38,6 +42,11 @@ static INLINE_ABBR: Lazy<Regex> =
 /// HTML with inline decorations applied
 pub fn apply_inline_decorations(html: &str) -> String {
     let mut result = html.to_string();
+
+    // Apply %%text%% → <s>text</s> (LukiWiki strikethrough)
+    result = LUKIWIKI_STRIKETHROUGH
+        .replace_all(&result, "<s>$1</s>")
+        .to_string();
 
     // Apply &color(fg,bg){text};
     result = INLINE_COLOR
@@ -165,5 +174,19 @@ mod tests {
         assert!(output.contains("color: red"));
         assert!(output.contains("font-size: 2rem"));
         assert!(output.contains("<sup>superscript</sup>"));
+    }
+
+    #[test]
+    fn test_lukiwiki_strikethrough() {
+        let input = "This is %%strikethrough%% text.";
+        let output = apply_inline_decorations(input);
+        assert_eq!(output, "This is <s>strikethrough</s> text.");
+    }
+
+    #[test]
+    fn test_lukiwiki_strikethrough_multiple() {
+        let input = "%%first%% and %%second%%";
+        let output = apply_inline_decorations(input);
+        assert_eq!(output, "<s>first</s> and <s>second</s>");
     }
 }
