@@ -3,8 +3,8 @@
 //! This module provides the core parsing functionality using comrak as the base
 //! Markdown parser, with extensions for LukiWiki-specific syntax.
 
-use comrak::options::ListStyleType;
-use comrak::{Arena, Options, Plugins, format_html_with_plugins, parse_document};
+use comrak::options::{ListStyleType, Plugins};
+use comrak::{Arena, Options, format_html_with_plugins, parse_document};
 
 /// Parser configuration for LukiWiki markup
 #[derive(Debug, Clone)]

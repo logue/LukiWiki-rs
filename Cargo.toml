@@ -23,7 +23,7 @@ html-escape = "0.2.13"          # HTML escaping
 base64 = "0.22.1"               # Base64 encoding for safe content storage
 
 [dev-dependencies]
-insta = "1.46.1"             # Snapshot testing
+insta = "1.46.2"             # Snapshot testing
 criterion = "0.8.1"          # Benchmarking
 wasm-bindgen-test = "0.3.58" # WASM testing
 

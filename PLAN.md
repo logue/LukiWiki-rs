@@ -138,12 +138,36 @@
     - `RIGHT: text` - 右寄せ → `<p class="text-end">text</p>` (Bootstrap)
     - `CENTER: text` - 中央寄せ → `<p class="text-center">text</p>` (Bootstrap)
     - `LEFT: text` - 左寄せ → `<p class="text-start">text</p>` (Bootstrap)
+    - `JUSTIFY: text` - 両端揃え/ブロック幅指定 🚧 実装予定
+      - **用途1: テキストの両端揃え（段落）**
+        - 例: `JUSTIFY: この文章は両端揃えで表示されます。` → `<p class="text-justify">この文章は両端揃えで表示されます。</p>`
+        - 注: Bootstrap 5では`text-justify`が非推奨だが、LukiWikiでは明示的に対応
+        - ブラウザ対応: モダンブラウザでは`text-align: justify`で両端揃えが可能
+      - **用途2: ブロック要素の幅指定（テーブル等）**
+        - テーブル行の前に`JUSTIFY:`がある場合、テーブル全体の幅を100%に設定
+        - 例:
+          ```
+          JUSTIFY:
+          | Header1 | Header2 |
+          |---------|---------|
+          | Cell1   | Cell2   |
+          ```
+          → `<table class="w-100">...</table>` または `<table style="width: 100%">...</table>`
+        - 用途: `CENTER:`でテーブル自体を中央寄せするのではなく、テーブルを画面幅いっぱいに広げた上でセル内のテキストを配置
+        - 区別:
+          - `CENTER: | Header |` → テーブル自体を中央寄せ（テーブルはコンテンツ幅）
+          - `JUSTIFY: | Header |` → テーブルを100%幅に拡張（テーブルが画面幅いっぱい）
+          - `JUSTIFY: CENTER: | Header |` → 100%幅のテーブルで、セル内テキストを中央揃え
+      - **実装方針**:
+        - 段落に対しては`text-justify`クラスを適用
+        - テーブルに対しては`w-100`クラス（Bootstrap）または`style="width: 100%"`を適用
+        - テーブル検出: `JUSTIFY:`の直後の行が`|`で始まる場合、次のブロック（テーブル）に適用
     - `TRUNCATE: text` - テキスト省略 → `<p class="text-truncate">text</p>` (Bootstrap) 🚧 実装予定
       - 長いテキストを`...`で省略（`overflow: hidden; text-overflow: ellipsis; white-space: nowrap`）
       - 幅指定はユーザーがCSSで指定する前提（テーブルセルでは自動適用）
     - **複合構文**: 複数のプレフィックスを組み合わせ可能 🚧 実装予定
       - **必須機能**: テーブルセル装飾で複数スタイルの同時適用が必要
-      - **構文順序**: `SIZE(...): COLOR(...): TRUNCATE: RIGHT/CENTER/LEFT: テキスト`
+      - **構文順序**: `SIZE(...): COLOR(...): TRUNCATE: JUSTIFY/RIGHT/CENTER/LEFT: テキスト`
         - サイズ → 色 → 省略 → 配置の順序を推奨（順不同でも動作）
       - **実装方針**:
         - 1つの正規表現で全プレフィックスをまとめて解析
@@ -153,6 +177,8 @@
         - `SIZE(1.5): COLOR(red): CENTER: テキスト` → `<p class="fs-4 text-center" style="color: red">テキスト</p>`
         - `TRUNCATE: CENTER: 長いテキスト` → `<p class="text-truncate text-center">長いテキスト</p>`
         - `COLOR(primary): RIGHT: 青い右寄せ` → `<p class="text-primary text-end">青い右寄せ</p>` (案A採用時)
+        - `JUSTIFY: テキスト` → `<p class="text-justify">テキスト</p>`
+        - `JUSTIFY: CENTER: テキスト` → `<p class="text-justify text-center">テキスト</p>` (両端揃え+中央寄せは矛盾するが、CSSの優先順位による)
       - **技術的課題**:
         - 現在の実装は各プレフィックスが個別に`<p>`タグを生成（不正なネスト発生）
         - 大幅な書き換えが必要（block_decorations.rsの再設計）
@@ -175,6 +201,81 @@
       - **単位あり**: インラインスタイル出力
         - 例: `&size(1.5rem){text};` → `<span style="font-size: 1.5rem">text</span>`
         - 例: `&size(2em){text};` → `<span style="font-size: 2em">text</span>`
+    - `&badge(type){text};` - Bootstrapバッジ表示 🚧 実装予定
+      - **Bootstrap Badge**: 小さなカウント表示やラベル表示用コンポーネント
+      - **サポートするバッジタイプ（8種類）**:
+        - `primary`, `secondary`, `success`, `danger`, `warning`, `info`, `light`, `dark`
+        - 例: `&badge(primary){New};` → `<span class="badge bg-primary">New</span>`
+        - 例: `&badge(danger){Error};` → `<span class="badge bg-danger">Error</span>`
+        - 例: `&badge(success){4};` → `<span class="badge bg-success">4</span>` (カウント表示)
+      - **ピルバッジ（丸みのある形状）**: `&badge(primary-pill){text};`
+        - 例: `&badge(success-pill){Active};` → `<span class="badge rounded-pill bg-success">Active</span>`
+      - **リンク複合パターン**: ⚠️ 検討中
+        - **問題**: バッジがリンクになる場合の構文をどうするか
+        - **案A: Markdown構文のネスト（採用予定）**: `&badge(primary){[New](/new)};`
+          - メリット: Markdown標準構文を活用、学習コスト低い
+          - デメリット: パース処理が複雑、後処理が必要
+          - 出力: `<a href="/new" class="badge bg-primary">New</a>`
+          - **実装方針（2つのアプローチ）**:
+            - **アプローチ1: 後処理で変換**（シンプルだが処理コスト高い）
+              1. `&badge(primary){[New](/new)};` → `<span class="badge bg-primary">[New](/new)</span>`
+              2. comrakが `[New](/new)` → `<a href="/new">New</a>` に変換
+              3. 結果: `<span class="badge bg-primary"><a href="/new">New</a></span>`
+              4. **後処理**: 正規表現で `<span class="badge ([^"]+)"><a href="([^"]+)">([^<]+)</a></span>` を検出
+              5. `<a href="$2" class="badge $1">$3</a>` に置換
+              - ⚠️ **懸念点**:
+                - 後処理が必要で処理コスト増加
+                - 正規表現が複雑になる可能性
+                - バッジ内に複数のリンクがある場合の対応が難しい
+            - **アプローチ2: badge処理時に直接リンク検出（推奨）**
+              1. `&badge(primary){[New](/new)};` をパース
+              2. content部分 `[New](/new)` に対して**即座に**Markdownリンク正規表現を適用
+              3. リンクパターン `\[([^\]]+)\]\(([^)]+)\)` を検出
+              4. 検出成功 → `<a href="/new" class="badge bg-primary">New</a>` を直接生成
+              5. 検出失敗 → 通常の `<span class="badge bg-primary">text</span>` を生成
+              - ✅ **利点**:
+                - 後処理不要、1パスで完結
+                - 処理が明確で、comrakとの干渉なし
+                - パフォーマンス良好（対象はbadge内のcontentのみ）
+              - **実装**:
+
+                ```rust
+                // inline_decorations.rsでの実装例
+                static BADGE_PATTERN: Lazy<Regex> =
+                    Lazy::new(|| Regex::new(r"&badge\(([^)]+)\)\{([^}]+)\};").unwrap());
+                static LINK_PATTERN: Lazy<Regex> =
+                    Lazy::new(|| Regex::new(r"\[([^\]]+)\]\(([^)]+)\)").unwrap());
+
+                // badge処理時
+                if let Some(link_caps) = LINK_PATTERN.captures(content) {
+                    let text = &link_caps[1];
+                    let url = &link_caps[2];
+                    format!("<a href=\"{}\" class=\"badge bg-{}\">{}</a>", url, badge_type, text)
+                } else {
+                    format!("<span class=\"badge bg-{}\">{}</span>", badge_type, content)
+                }
+                ```
+
+          - **採用方針**: **アプローチ2（直接リンク検出）**を採用
+            - 理由: 処理が軽量、実装が明確、後処理不要
+            - 処理負荷: 最小限（badgeパターンが検出された時のみ、content部分に対してリンク正規表現を1回実行）
+            - バッジ+リンクは頻繁に使われないため、全体のパフォーマンスへの影響は軽微
+
+        - **案B: 専用構文**: `&badge(primary,/new){New};`
+          - メリット: シンプル、パース容易
+          - デメリット: 新しい構文を覚える必要がある、他の装飾関数と一貫性がない
+          - 出力: `<a href="/new" class="badge bg-primary">New</a>`
+        - **案C: 別関数**: `&badge-link(primary,/new){New};`
+          - メリット: 明示的、混乱が少ない
+          - デメリット: 関数が増える、冗長
+          - 出力: `<a href="/new" class="badge bg-primary">New</a>`
+
+      - **使用例**:
+        - ステータス表示: `Status: &badge(success){Active};` → `Status: <span class="badge bg-success">Active</span>`
+        - 通知カウント: `Messages &badge(danger){99+};` → `Messages <span class="badge bg-danger">99+</span>`
+        - タグ: `&badge(secondary){Tag1}; &badge(secondary){Tag2};` → `<span class="badge bg-secondary">Tag1</span> <span class="badge bg-secondary">Tag2</span>`
+      - **ダークモード対応**: Bootstrap CSS変数で自動切替
+
     - `&sup(text);` - 上付き文字 → `<sup>text</sup>`
     - `&sub(text);` - 下付き文字 → `<sub>text</sub>`
     - `&lang(locale){text};` - 言語指定 → `<span lang="locale">text</span>`
@@ -201,6 +302,7 @@
         - 例: `&bdo(rtl){right-to-left};` → `<bdo dir="rtl">right-to-left</bdo>`
       - `&wbr;` - 改行可能位置 → `<wbr />`
     - [src/lukiwiki/inline_decorations.rs](src/lukiwiki/inline_decorations.rs)実装完了
+
   - **取り消し線構文の分離**: ✅
     - **LukiWiki**: `%%text%%` → `<s>text</s>` (視覚的な取り消し線)
     - **Markdown/GFM**: `~~text~~` → `<del>text</del>` (削除を意味する取り消し線)
