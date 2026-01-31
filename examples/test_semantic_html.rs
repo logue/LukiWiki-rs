@@ -1,4 +1,4 @@
-use lukiwiki_parser::parse;
+use universal_markdown::parse;
 
 fn main() {
     println!("=== Semantic HTML Elements Test ===\n");

@@ -154,7 +154,7 @@ impl HeaderIdMap {
 /// # Examples
 ///
 /// ```
-/// use lukiwiki_parser::lukiwiki::conflict_resolver::preprocess_conflicts;
+/// use universal_markdown::extensions::conflict_resolver::preprocess_conflicts;
 ///
 /// let input = "> quote <";
 /// let (output, _) = preprocess_conflicts(input);
@@ -549,7 +549,7 @@ fn convert_inline_decoration_noargs_to_html(function: &str) -> Option<String> {
 }
 
 pub fn postprocess_conflicts(html: &str, header_map: &HeaderIdMap) -> String {
-    use crate::lukiwiki::block_decorations;
+    use crate::extensions::block_decorations;
 
     let mut result = html.to_string();
 

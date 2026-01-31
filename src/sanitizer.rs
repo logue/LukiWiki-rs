@@ -18,7 +18,7 @@ use std::borrow::Cow;
 /// # Examples
 ///
 /// ```
-/// use lukiwiki_parser::sanitizer::sanitize;
+/// use universal_markdown::sanitizer::sanitize;
 ///
 /// let input = "<script>alert('xss')</script>";
 /// let output = sanitize(input);

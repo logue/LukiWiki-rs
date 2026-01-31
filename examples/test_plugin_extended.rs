@@ -1,4 +1,4 @@
-use lukiwiki_parser::parse;
+use universal_markdown::parse;
 
 fn main() {
     println!("=== Plugin Syntax Test ===\n");

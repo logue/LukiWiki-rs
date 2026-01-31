@@ -1,4 +1,4 @@
-use lukiwiki_parser::{parse, parse_with_frontmatter};
+use universal_markdown::{parse, parse_with_frontmatter};
 
 fn main() {
     println!("=== Test 1: YAML Frontmatter ===");

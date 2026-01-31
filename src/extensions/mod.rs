@@ -1,7 +1,7 @@
-//! LukiWiki-specific syntax extensions
+//! Extended syntax for Universal Markdown
 //!
-//! This module provides parsing support for LukiWiki legacy syntax that extends
-//! standard Markdown with additional formatting and layout capabilities.
+//! This module provides extended syntax support including Bootstrap 5 integration,
+//! semantic HTML elements, definition lists, and LukiWiki legacy compatibility.
 
 pub mod block_decorations;
 pub mod conflict_resolver;
@@ -9,10 +9,10 @@ pub mod emphasis;
 pub mod inline_decorations;
 pub mod plugins;
 
-/// Apply LukiWiki-specific transformations to HTML output
+/// Apply extended syntax transformations to HTML output
 ///
 /// This function processes the HTML output from the Markdown parser and applies
-/// LukiWiki-specific syntax transformations.
+/// extended syntax transformations including Bootstrap integration.
 ///
 /// # Arguments
 ///
@@ -20,13 +20,13 @@ pub mod plugins;
 ///
 /// # Returns
 ///
-/// Transformed HTML with LukiWiki syntax applied
-pub fn apply_lukiwiki_syntax(html: &str) -> String {
+/// Transformed HTML with extended syntax applied
+pub fn apply_extensions(html: &str) -> String {
     let header_map = conflict_resolver::HeaderIdMap::new();
-    apply_lukiwiki_syntax_with_headers(html, &header_map)
+    apply_extensions_with_headers(html, &header_map)
 }
 
-/// Apply LukiWiki-specific transformations with custom header IDs
+/// Apply extended syntax transformations with custom header IDs
 ///
 /// # Arguments
 ///
@@ -35,8 +35,8 @@ pub fn apply_lukiwiki_syntax(html: &str) -> String {
 ///
 /// # Returns
 ///
-/// Transformed HTML with LukiWiki syntax and custom header IDs applied
-pub fn apply_lukiwiki_syntax_with_headers(
+/// Transformed HTML with extended syntax and custom header IDs applied
+pub fn apply_extensions_with_headers(
     html: &str,
     header_map: &conflict_resolver::HeaderIdMap,
 ) -> String {
@@ -115,7 +115,7 @@ mod tests {
     #[test]
     fn test_lukiwiki_syntax_integration() {
         let input = "<p>This is ''bold'' and '''italic'''</p>";
-        let output = apply_lukiwiki_syntax(input);
+        let output = apply_extensions(input);
         assert!(output.contains("<b>bold</b>"));
         assert!(output.contains("<i>italic</i>"));
     }

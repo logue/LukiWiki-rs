@@ -1,13 +1,15 @@
-//! LukiWiki Parser
+//! Universal Markdown Parser
 //!
-//! A Markdown superset wiki markup parser with LukiWiki syntax support.
+//! A post-Markdown superset parser with Bootstrap 5 integration and extensible syntax.
 //! This parser aims for reasonable CommonMark compliance (75%+) while
-//! maintaining compatibility with legacy LukiWiki syntax.
+//! providing powerful extensions including Bootstrap styling, semantic HTML, and plugin support.
 //!
 //! # Features
 //!
 //! - CommonMark-compliant Markdown parsing
-//! - LukiWiki legacy syntax support (tables, definition lists, etc.)
+//! - Bootstrap 5 integration (Core UI compatible)
+//! - Extended syntax (definition lists, decorations, semantic HTML)
+//! - LukiWiki legacy syntax support for backward compatibility
 //! - HTML sanitization (direct HTML input is forbidden)
 //! - Safe HTML output generation
 //! - Plugin system support (output only, execution handled externally)
@@ -21,7 +23,7 @@
 //! # Example
 //!
 //! ```
-//! use lukiwiki_parser::parse;
+//! use universal_markdown::parse;
 //!
 //! let input = "# Hello World\n\nThis is **bold** text.";
 //! let html = parse(input);
@@ -32,16 +34,16 @@
 //! This library can be compiled to WebAssembly for use in browsers:
 //!
 //! ```javascript
-//! import init, { parse_wiki } from './lukiwiki_parser.js';
+//! import init, { parse_markdown } from './universal_markdown.js';
 //!
 //! await init();
-//! const html = parse_wiki('# Hello World');
+//! const html = parse_markdown('# Hello World');
 //! ```
 
 use wasm_bindgen::prelude::*;
 
+pub mod extensions;
 pub mod frontmatter;
-pub mod lukiwiki;
 pub mod parser;
 pub mod sanitizer;
 
@@ -71,7 +73,7 @@ pub struct ParseResult {
 /// # Examples
 ///
 /// ```
-/// use lukiwiki_parser::parse;
+/// use universal_markdown::parse;
 ///
 /// let input = "# Heading\n\n**Bold** and *italic*";
 /// let html = parse(input);
@@ -83,13 +85,13 @@ pub fn parse(input: &str) -> String {
     result.html
 }
 
-/// Parse LukiWiki markup and return HTML with frontmatter
+/// Parse Universal Markdown and return HTML with frontmatter
 ///
 /// This function extracts frontmatter and returns it separately from the HTML content.
 ///
 /// # Arguments
 ///
-/// * `input` - The LukiWiki markup source text
+/// * `input` - The Universal Markdown source text
 ///
 /// # Returns
 ///
@@ -98,7 +100,7 @@ pub fn parse(input: &str) -> String {
 /// # Examples
 ///
 /// ```
-/// use lukiwiki_parser::parse_with_frontmatter;
+/// use universal_markdown::parse_with_frontmatter;
 ///
 /// let input = "---\ntitle: Test\n---\n\n# Content";
 /// let result = parse_with_frontmatter(input);
@@ -110,7 +112,7 @@ pub fn parse_with_frontmatter(input: &str) -> ParseResult {
     let (frontmatter_data, content) = frontmatter::extract_frontmatter(input);
 
     // Step 1: Pre-process to resolve syntax conflicts and extract custom header IDs
-    let (preprocessed, header_map) = lukiwiki::conflict_resolver::preprocess_conflicts(&content);
+    let (preprocessed, header_map) = extensions::conflict_resolver::preprocess_conflicts(&content);
 
     // Step 2: Sanitize input
     let sanitized = sanitizer::sanitize(&preprocessed);
@@ -119,8 +121,8 @@ pub fn parse_with_frontmatter(input: &str) -> ParseResult {
     let options = parser::ParserOptions::default();
     let html = parser::parse_to_html(&sanitized, &options);
 
-    // Step 4: Apply LukiWiki-specific syntax and custom header IDs (includes post-processing)
-    let final_html = lukiwiki::apply_lukiwiki_syntax_with_headers(&html, &header_map);
+    // Step 4: Apply extended syntax and custom header IDs (includes post-processing)
+    let final_html = extensions::apply_extensions_with_headers(&html, &header_map);
 
     // Step 5: Extract footnotes from HTML
     let (body_html, footnotes_html) = extract_footnotes(&final_html);
@@ -160,13 +162,13 @@ fn extract_footnotes(html: &str) -> (String, Option<String>) {
     }
 }
 
-/// WASM-exposed API for parsing LukiWiki markup
+/// WASM-exposed API for parsing Universal Markdown
 ///
 /// This is the main entry point when using the library from JavaScript/WebAssembly.
 ///
 /// # Arguments
 ///
-/// * `input` - The LukiWiki markup source text
+/// * `input` - The Universal Markdown source text
 ///
 /// # Returns
 ///
@@ -175,12 +177,18 @@ fn extract_footnotes(html: &str) -> (String, Option<String>) {
 /// # JavaScript Example
 ///
 /// ```javascript
-/// import init, { parse_wiki } from './lukiwiki_parser.js';
+/// import init, { parse_markdown } from './universal_markdown.js';
 ///
 /// await init();
-/// const html = parse_wiki('# Hello World\n\nThis is **bold** text.');
+/// const html = parse_markdown('# Hello World\n\nThis is **bold** text.');
 /// console.log(html);
 /// ```
+#[wasm_bindgen]
+pub fn parse_markdown(input: &str) -> String {
+    parse(input)
+}
+
+/// Legacy alias for backward compatibility
 #[wasm_bindgen]
 pub fn parse_wiki(input: &str) -> String {
     parse(input)

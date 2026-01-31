@@ -1,4 +1,4 @@
-use lukiwiki_parser::parse;
+use universal_markdown::parse;
 
 fn main() {
     let output = parse("COLOR(success): This is a success message");

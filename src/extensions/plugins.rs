@@ -107,7 +107,7 @@ static INLINE_PLUGIN_NOARGS: Lazy<Regex> = Lazy::new(|| {
 /// # Examples
 ///
 /// ```
-/// use lukiwiki_parser::lukiwiki::plugins::apply_plugin_syntax;
+/// use universal_markdown::extensions::plugins::apply_plugin_syntax;
 ///
 /// // Block plugin
 /// let input = "@toc(2){{ }}";

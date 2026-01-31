@@ -1,12 +1,15 @@
-# LukiWiki-rs
+# Universal Markdown
 
-LukiWikiのWikiパーサーをRustで再実装したプロジェクトです。CommonMark準拠のMarkdownパーサーをベースに、LukiWiki独自の構文拡張をサポートします。
+CommonMark準拠のMarkdownパーサーに、Bootstrap 5統合、セマンティックHTML要素、拡張可能なプラグインシステムを備えたポストMarkdownパーサーです。LukiWikiレガシー構文との互換性もサポートします。
 
 ## 特徴
 
 - **CommonMark準拠**: 標準Markdown構文の高い互換性
-- **LukiWiki構文サポート**: レガシーPHP実装との互換性
+- **ポストMarkdown**: Markdownを超える拡張機能
 - **Bootstrap 5統合**: デフォルトでBootstrapクラスを生成（Core UI互換）
+- **セマンティックHTML**: アクセシビリティとSEOに優しいHTML生成
+- **Definition Lists**: 用語辞典構文のサポート
+- **LukiWiki互換**: レガシーPHP実装との後方互換性
 - **フロントマターサポート**: YAML/TOML形式のメタデータ
 - **フットノート**: 標準的な脚注構文のサポート
 - **セキュリティ**: HTMLサニタイゼーションによるXSS対策
@@ -47,7 +50,7 @@ date = 2024-01-23
 フロントマターはHTML出力から除外され、`parse_with_frontmatter()`関数を使用することで別途取得できます。
 
 ```rust
-use lukiwiki_parser::parse_with_frontmatter;
+use universal_markdown::parse_with_frontmatter;
 
 let input = "---\ntitle: Test\n---\n\n# Content";
 let result = parse_with_frontmatter(input);
@@ -76,7 +79,7 @@ Markdownの標準的なフットノート構文をサポートしています：
 フットノートは本文から分離され、`ParseResult`の`footnotes`フィールドで取得できます：
 
 ```rust
-use lukiwiki_parser::parse_with_frontmatter;
+use universal_markdown::parse_with_frontmatter;
 
 let input = "Text with footnote[^1].\n\n[^1]: Footnote content.";
 let result = parse_with_frontmatter(input);

@@ -2,7 +2,7 @@
 //!
 //! Tests for Bootstrap class generation and styling features
 
-use lukiwiki_parser::parse;
+use universal_markdown::parse;
 
 #[test]
 fn test_bootstrap_table_default_class() {

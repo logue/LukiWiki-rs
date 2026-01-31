@@ -1,12 +1,12 @@
 [package]
-name = "lukiwiki-parser"
+name = "universal-markdown"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.93"
 license = "MIT"
 authors = ["logue"]
-description = "LukiWiki parser - Markdown superset wiki markup parser"
-repository = "https://github.com/logue/LukiWiki-rs"
+description = "Universal Markdown - A post-Markdown superset with Bootstrap 5 integration and extensible syntax"
+repository = "https://github.com/logue/UniversalMarkdown"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

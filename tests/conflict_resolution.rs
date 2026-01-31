@@ -1,7 +1,7 @@
 //! Integration tests for syntax conflict resolution
 
-use lukiwiki_parser::lukiwiki::conflict_resolver::detect_ambiguous_syntax;
-use lukiwiki_parser::parse;
+use universal_markdown::extensions::conflict_resolver::detect_ambiguous_syntax;
+use universal_markdown::parse;
 
 #[test]
 fn test_lukiwiki_blockquote() {

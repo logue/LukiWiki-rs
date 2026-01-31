@@ -1,4 +1,4 @@
-use lukiwiki_parser::parse;
+use universal_markdown::parse;
 
 #[test]
 fn test_semantic_html_integration() {

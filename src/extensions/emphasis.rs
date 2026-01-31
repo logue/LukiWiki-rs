@@ -33,7 +33,7 @@ static LUKIWIKI_ITALIC: Lazy<Regex> = Lazy::new(|| {
 /// # Examples
 ///
 /// ```
-/// use lukiwiki_parser::lukiwiki::emphasis::apply_lukiwiki_emphasis;
+/// use universal_markdown::extensions::emphasis::apply_lukiwiki_emphasis;
 ///
 /// let input = "This is ''bold'' and '''italic'''";
 /// let output = apply_lukiwiki_emphasis(input);

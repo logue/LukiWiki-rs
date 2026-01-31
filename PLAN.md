@@ -1,6 +1,6 @@
-# LukiWiki Rustパーサー実装プラン
+# Universal Markdown実装プラン
 
-**プロジェクト概要**: Markdown上位互換を目指すLukiWikiのパース処理をRustで実装する。CommonMark仕様テストを合理的にパス(75%+目標)しつつ、レガシー構文を保持する。
+**プロジェクト概要**: Markdownを超える次世代マークアップ言語。CommonMark仕様テストを合理的にパス(75%+目標)しつつ、Bootstrap 5統合、セマンティックHTML、拡張可能なプラグインシステムを提供。LukiWikiレガシー構文との後方互換性も維持。
 
 **作成日**: 2026年1月23日
 **最終更新**: 2026年1月31日
@@ -10,9 +10,11 @@
 ## 目標
 
 - CommonMark仕様テストで75%以上のパス率を達成
-- 既存LukiWikiコンテンツとの後方互換性を維持
+- Bootstrap 5完全統合（Core UI互換）
+- セマンティックHTML要素の包括的サポート
+- LukiWiki既存コンテンツとの後方互換性を維持
 - HTML直接入力を禁止し、セキュアなHTML生成のみ許可
-- 既存Markdownパーサー（`pulldown-cmark`/`comrak`）を基盤として活用
+- 既存Markdownパーサー（`comrak`）を基盤として活用
 
 ## 実装ステップ
 
@@ -74,14 +76,14 @@
 
 **作業内容**:
 
-- [src/lukiwiki/](src/lukiwiki/)ディレクトリ作成 ✅
+- [src/extensions/](src/extensions/)ディレクトリ作成 ✅
 - 実装する構文:
   - **ブロック引用**: `> ... <` (開始・終了タグ形式) ✅
-    - [src/lukiwiki/conflict_resolver.rs](src/lukiwiki/conflict_resolver.rs)でマーカー方式実装
+    - [src/extensions/conflict_resolver.rs](src/extensions/conflict_resolver.rs)でマーカー方式実装
   - **LukiWiki強調**: ✅
     - `''text''` → `<b>text</b>` (視覚的な太字)
     - `'''text'''` → `<i>text</i>` (視覚的な斜体)
-    - [src/lukiwiki/emphasis.rs](src/lukiwiki/emphasis.rs)実装完了
+    - [src/extensions/emphasis.rs](src/extensions/emphasis.rs)実装完了
   - **Markdown強調**: ✅
     - `**text**` → `<strong>text</strong>` (セマンティックな強調)
     - `*text*` → `<em>text</em>` (セマンティックな強調)
@@ -184,7 +186,7 @@
         - 大幅な書き換えが必要（block_decorations.rsの再設計）
         - conflict_resolver.rsでの複合マーカー処理も対応必須
       - テーブルのセル装飾で特に有用
-    - [src/lukiwiki/block_decorations.rs](src/lukiwiki/block_decorations.rs)実装完了（Bootstrap対応は未実装）
+    - [src/extensions/block_decorations.rs](src/extensions/block_decorations.rs)実装完了（Bootstrap対応は未実装）
   - **インライン装飾関数** (プラグインのインライン型と同じ表記): ✅
     - `&color(fg,bg){text};` - 文字色・背景色指定（空白時は`inherit`） ✅
       - **注**: ブロック版`COLOR()`と同じ実装方針を採用（上記参照）
@@ -301,7 +303,7 @@
       - `&bdo(dir){text};` - 双方向テキスト上書き → `<bdo dir="dir">text</bdo>`
         - 例: `&bdo(rtl){right-to-left};` → `<bdo dir="rtl">right-to-left</bdo>`
       - `&wbr;` - 改行可能位置 → `<wbr />`
-    - [src/lukiwiki/inline_decorations.rs](src/lukiwiki/inline_decorations.rs)実装完了
+    - [src/extensions/inline_decorations.rs](src/extensions/inline_decorations.rs)実装完了
 
   - **取り消し線構文の分離**: ✅
     - **LukiWiki**: `%%text%%` → `<s>text</s>` (視覚的な取り消し線)
@@ -309,7 +311,7 @@
     - 注: 両方共取り消し線として表示されるが、HTMLの意味合いが異なる
       - `<s>`: 正確でなくなった内容や関連性のなくなった内容
       - `<del>`: ドキュメントから削除された内容
-    - 実装: [src/lukiwiki/inline_decorations.rs](src/lukiwiki/inline_decorations.rs)でLukiWiki形式を処理後、comrakでMarkdown形式を処理
+    - 実装: [src/extensions/inline_decorations.rs](src/extensions/inline_decorations.rs)でLukiWiki形式を処理後、comrakでMarkdown形式を処理
   - **プラグインシステム** (拡張可能なWiki機能): ✅
     - **インライン型（完全形）**: `&function(args){content};`
       - パース出力: `<span class="plugin-function" data-args='["arg1","arg2"]'>content</span>`
@@ -406,7 +408,7 @@
       - 短いURL（SNSでの共有に最適）
       - 安定したリンク（ヘッダーテキスト変更に強い）
       - セキュリティ（同形異字による偽装攻撃を防止）
-    - 実装: [src/lukiwiki/conflict_resolver.rs](src/lukiwiki/conflict_resolver.rs)でカスタムID抽出とHTML生成
+    - 実装: [src/extensions/conflict_resolver.rs](src/extensions/conflict_resolver.rs)でカスタムID抽出とHTML生成
     - [examples/test_header_id.rs](examples/test_header_id.rs)でデモンストレーション
   - **フロントマター**: YAML/TOML形式のメタデータ ✅
     - YAML形式: `---` で囲む
@@ -558,7 +560,7 @@
 
 **作業内容**:
 
-- [src/lukiwiki/conflict_resolver.rs](src/lukiwiki/conflict_resolver.rs)を作成 ✅
+- [src/extensions/conflict_resolver.rs](src/extensions/conflict_resolver.rs)を作成 ✅
 - マーカーベース前処理システム実装 ✅
   - プリプロセス: LukiWiki構文を`{{MARKER:...:MARKER}}`形式で保護
   - サニタイズーション: マーカーはHTMLエスケープされない
@@ -639,7 +641,7 @@
 
 **作業内容**:
 
-- [src/lukiwiki/nested_blocks.rs](src/lukiwiki/nested_blocks.rs):
+- [src/extensions/nested_blocks.rs](src/extensions/nested_blocks.rs):
   - **リスト内ブロック要素**
     - リスト項目内にテーブル、コードブロック等を許可
     - CommonMark違反だが互換性のため必須

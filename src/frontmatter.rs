@@ -50,7 +50,7 @@ static TOML_FRONTMATTER: Lazy<Regex> = Lazy::new(|| {
 /// # Examples
 ///
 /// ```
-/// use lukiwiki_parser::frontmatter::extract_frontmatter;
+/// use universal_markdown::frontmatter::extract_frontmatter;
 ///
 /// let input = "---\ntitle: Hello\nauthor: John\n---\n\n# Content";
 /// let (frontmatter, content) = extract_frontmatter(input);
