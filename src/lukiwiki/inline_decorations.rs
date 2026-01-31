@@ -18,6 +18,13 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
 
+// Badge pattern with optional link support
+static INLINE_BADGE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"&badge\(([^)]+?)\)\{([^}]+?)\};").unwrap());
+
+// Link pattern for detecting [text](url) inside badge content
+static MARKDOWN_LINK: Lazy<Regex> = Lazy::new(|| Regex::new(r"\[([^\]]+)\]\(([^)]+)\)").unwrap());
+
 static INLINE_COLOR: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"&color\(([^,)]*?)(?:,([^)]*?))?\)\{([^}]+?)\};").unwrap());
 
@@ -64,6 +71,91 @@ static INLINE_WBR: Lazy<Regex> = Lazy::new(|| Regex::new(r"&wbr;").unwrap());
 /// Regex for LukiWiki strikethrough: %%text%% → <s>text</s>
 static LUKIWIKI_STRIKETHROUGH: Lazy<Regex> = Lazy::new(|| Regex::new(r"%%([^%]+)%%").unwrap());
 
+/// Map font size value to Bootstrap class or inline style
+fn map_font_size(value: &str) -> (bool, String) {
+    // Check if value has unit (rem, em, px, etc.)
+    if value.contains("rem") || value.contains("em") || value.contains("px") {
+        return (false, value.to_string()); // Return as inline style
+    }
+
+    // Map to Bootstrap fs-* classes (unitless values)
+    let class = match value {
+        "2.5" => "fs-1",
+        "2" | "2.0" => "fs-2",
+        "1.75" => "fs-3",
+        "1.5" => "fs-4",
+        "1.25" => "fs-5",
+        "0.875" => "fs-6",
+        _ => return (false, format!("{}rem", value)), // Custom value as inline style
+    };
+
+    (true, class.to_string())
+}
+
+/// Map color value to Bootstrap class or inline style
+fn map_color(value: &str, is_background: bool) -> (bool, String) {
+    let trimmed = value.trim();
+
+    // Bootstrap theme colors
+    let bootstrap_colors = [
+        "primary",
+        "secondary",
+        "success",
+        "danger",
+        "warning",
+        "info",
+        "light",
+        "dark",
+        "body",
+        "body-secondary",
+        "body-tertiary",
+        "body-emphasis",
+        "primary-subtle",
+        "secondary-subtle",
+        "success-subtle",
+        "danger-subtle",
+        "warning-subtle",
+        "info-subtle",
+        "light-subtle",
+        "dark-subtle",
+        "primary-emphasis",
+        "secondary-emphasis",
+        "success-emphasis",
+        "danger-emphasis",
+        "warning-emphasis",
+        "info-emphasis",
+        "light-emphasis",
+        "dark-emphasis",
+    ];
+
+    // Check if it's a Bootstrap color
+    for color in &bootstrap_colors {
+        if trimmed == *color || trimmed.starts_with(&format!("{}-", color)) {
+            let prefix = if is_background { "bg" } else { "text" };
+            return (true, format!("{}-{}", prefix, trimmed));
+        }
+    }
+
+    // Otherwise, return as inline style value
+    (false, trimmed.to_string())
+}
+
+/// Map badge type to Bootstrap badge classes
+fn map_badge_type(badge_type: &str) -> String {
+    let mut classes = vec!["badge"];
+
+    // Check if it's a pill badge
+    if badge_type.ends_with("-pill") {
+        classes.push("rounded-pill");
+        let color = badge_type.trim_end_matches("-pill");
+        classes.push("bg-");
+        return format!("{}{}", classes.join(" "), color);
+    }
+
+    // Regular badge
+    format!("badge bg-{}", badge_type)
+}
+
 /// Apply inline decoration functions to HTML
 ///
 /// # Arguments
@@ -81,35 +173,79 @@ pub fn apply_inline_decorations(html: &str) -> String {
         .replace_all(&result, "<s>$1</s>")
         .to_string();
 
-    // Apply &color(fg,bg){text};
+    // Apply &badge(type){text}; with optional link support
+    result = INLINE_BADGE
+        .replace_all(&result, |caps: &regex::Captures| {
+            let badge_type = caps.get(1).map_or("", |m| m.as_str());
+            let content = caps.get(2).map_or("", |m| m.as_str());
+            let badge_class = map_badge_type(badge_type);
+
+            // Check if content contains a Markdown link: [text](url)
+            if let Some(link_caps) = MARKDOWN_LINK.captures(content) {
+                let text = link_caps.get(1).map_or("", |m| m.as_str());
+                let url = link_caps.get(2).map_or("", |m| m.as_str());
+                format!("<a href=\"{}\" class=\"{}\">{}</a>", url, badge_class, text)
+            } else {
+                format!("<span class=\"{}\">{}</span>", badge_class, content)
+            }
+        })
+        .to_string();
+
+    // Apply &color(fg,bg){text}; with Bootstrap support
     result = INLINE_COLOR
         .replace_all(&result, |caps: &regex::Captures| {
             let fg = caps.get(1).map_or("", |m| m.as_str().trim());
             let bg = caps.get(2).map_or("", |m| m.as_str().trim());
             let text = caps.get(3).map_or("", |m| m.as_str());
 
+            let mut classes = Vec::new();
             let mut styles = Vec::new();
+
             if !fg.is_empty() && fg != "inherit" {
-                styles.push(format!("color: {}", fg));
-            }
-            if !bg.is_empty() && bg != "inherit" {
-                styles.push(format!("background-color: {}", bg));
+                let (is_class, value) = map_color(fg, false);
+                if is_class {
+                    classes.push(value);
+                } else {
+                    styles.push(format!("color: {}", value));
+                }
             }
 
-            if styles.is_empty() {
+            if !bg.is_empty() && bg != "inherit" {
+                let (is_class, value) = map_color(bg, true);
+                if is_class {
+                    classes.push(value);
+                } else {
+                    styles.push(format!("background-color: {}", value));
+                }
+            }
+
+            if classes.is_empty() && styles.is_empty() {
                 text.to_string()
             } else {
-                format!("<span style=\"{}\">{}</span>", styles.join("; "), text)
+                let mut attrs = Vec::new();
+                if !classes.is_empty() {
+                    attrs.push(format!("class=\"{}\"", classes.join(" ")));
+                }
+                if !styles.is_empty() {
+                    attrs.push(format!("style=\"{}\"", styles.join("; ")));
+                }
+                format!("<span {}>{}</span>", attrs.join(" "), text)
             }
         })
         .to_string();
 
-    // Apply &size(rem){text};
+    // Apply &size(value){text}; with Bootstrap support
     result = INLINE_SIZE
         .replace_all(&result, |caps: &regex::Captures| {
             let size = caps.get(1).map_or("", |m| m.as_str());
             let text = caps.get(2).map_or("", |m| m.as_str());
-            format!("<span style=\"font-size: {}rem\">{}</span>", size, text)
+
+            let (is_class, value) = map_font_size(size);
+            if is_class {
+                format!("<span class=\"{}\">{}</span>", value, text)
+            } else {
+                format!("<span style=\"font-size: {}\">{}</span>", value, text)
+            }
         })
         .to_string();
 
@@ -212,7 +348,8 @@ mod tests {
     fn test_inline_size() {
         let input = "&size(1.5){larger};";
         let output = apply_inline_decorations(input);
-        assert!(output.contains("<span style=\"font-size: 1.5rem\">larger</span>"));
+        // 1.5 maps to Bootstrap fs-4 class
+        assert!(output.contains("<span class=\"fs-4\">larger</span>"));
     }
 
     #[test]
@@ -251,7 +388,8 @@ mod tests {
         let input = "&color(red){Red}; and &size(2){Big}; and &sup(superscript);";
         let output = apply_inline_decorations(input);
         assert!(output.contains("color: red"));
-        assert!(output.contains("font-size: 2rem"));
+        // 2 maps to Bootstrap fs-2 class
+        assert!(output.contains("fs-2"));
         assert!(output.contains("<sup>superscript</sup>"));
     }
 
@@ -320,5 +458,55 @@ mod tests {
         let input = "Very&wbr;Long&wbr;Word";
         let output = apply_inline_decorations(input);
         assert_eq!(output, "Very<wbr />Long<wbr />Word");
+    }
+
+    #[test]
+    fn test_badge_basic() {
+        let input = "&badge(primary){New};";
+        let output = apply_inline_decorations(input);
+        assert!(output.contains("<span class=\"badge bg-primary\">New</span>"));
+    }
+
+    #[test]
+    fn test_badge_pill() {
+        let input = "&badge(success-pill){Active};";
+        let output = apply_inline_decorations(input);
+        assert!(output.contains("badge rounded-pill"));
+        assert!(output.contains("bg-success"));
+    }
+
+    #[test]
+    fn test_badge_with_link() {
+        let input = "&badge(danger){[Error](/error)};";
+        let output = apply_inline_decorations(input);
+        assert!(output.contains("<a href=\"/error\" class=\"badge bg-danger\">Error</a>"));
+    }
+
+    #[test]
+    fn test_color_bootstrap_class() {
+        let input = "&color(primary){Primary text};";
+        let output = apply_inline_decorations(input);
+        assert!(output.contains("class=\"text-primary\""));
+    }
+
+    #[test]
+    fn test_color_custom_value() {
+        let input = "&color(#FF0000){Custom red};";
+        let output = apply_inline_decorations(input);
+        assert!(output.contains("style=\"color: #FF0000\""));
+    }
+
+    #[test]
+    fn test_size_bootstrap_class() {
+        let input = "&size(1.5){Medium text};";
+        let output = apply_inline_decorations(input);
+        assert!(output.contains("class=\"fs-4\""));
+    }
+
+    #[test]
+    fn test_size_custom_value() {
+        let input = "&size(3rem){Custom size};";
+        let output = apply_inline_decorations(input);
+        assert!(output.contains("style=\"font-size: 3rem\""));
     }
 }
