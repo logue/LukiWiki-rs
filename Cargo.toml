@@ -24,7 +24,7 @@ base64 = "0.22.1"               # Base64 encoding for safe content storage
 serde_json = "1.0.149"          # JSON serialization for definition lists
 
 [dev-dependencies]
-insta = "1.46.2"             # Snapshot testing
+insta = "1.46.3"             # Snapshot testing
 criterion = "0.8.1"          # Benchmarking
 wasm-bindgen-test = "0.3.58" # WASM testing
 

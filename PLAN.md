@@ -286,6 +286,66 @@
     - `&ruby(reading){text};` - ルビ（ふりがな）表示 → `<ruby>text<rp>(</rp><rt>reading</rt><rp>)</rp></ruby>`
       - 例: `&ruby(Ashita){明日};` → `<ruby>明日<rp>(</rp><rt>Ashita</rt><rp>)</rp></ruby>`
       - 注: `<rp>`タグはルビ未対応ブラウザで括弧を表示するためのフォールバック
+    - `&spoiler(text);` - Discord風スポイラー表示 → `<span class="spoiler">text</span>` 🚧 実装予定
+      - **Discord互換構文**: `|| text ||` → `<span class="spoiler">text</span>`
+      - **機能**: クリックまたはタップで内容を表示（デフォルトは非表示）
+      - **実装方針**:
+        - パーサーで`|| text ||`を検出し、`&spoiler(text);`に内部変換
+        - inline_decorations.rsで`&spoiler(text);`を処理
+        - 出力HTML: `<span class="spoiler">text</span>`
+        - CSS実装（推奨）:
+          ```css
+          .spoiler {
+            background-color: #202225;
+            color: transparent;
+            cursor: pointer;
+            transition: color 0.1s ease;
+          }
+          .spoiler:hover,
+          .spoiler:active,
+          .spoiler.revealed {
+            background-color: #2f3136;
+            color: inherit;
+          }
+          ```
+        - JavaScript実装（オプション、クリック/タップ対応）:
+          ```javascript
+          document.querySelectorAll(".spoiler").forEach((el) => {
+            el.addEventListener("click", () => {
+              el.classList.toggle("revealed");
+            });
+          });
+          ```
+      - **使用例**:
+        - `||ネタバレ注意||` → `<span class="spoiler">ネタバレ注意</span>`
+        - `このキャラは||実は悪役||だった。` → `このキャラは<span class="spoiler">実は悪役</span>だった。`
+      - **UMD装飾関数形式**（代替構文）: `&spoiler{ネタバレ注意};`
+        - Discord構文とUMD構文の両方をサポート
+        - 内部的には同じHTML出力に変換
+      - **アクセシビリティ**（多言語対応）:
+        - 出力HTML: `<span class="spoiler" role="button" tabindex="0" aria-expanded="false">text</span>`
+        - **role="button"**: クリック可能なインタラクティブ要素であることを示す
+        - **tabindex="0"**: キーボードフォーカス可能にする（Tab/Shift+Tabでナビゲート可能）
+        - **aria-expanded="false"**: 初期状態は非表示、クリック後は`"true"`に変更
+        - **言語非依存**: 属性値は多言語対応不要、スクリーンリーダーが自動で読み上げ
+        - **キーボード操作**: JavaScript側でEnterキー/Spaceキーのイベントハンドリング実装
+        - **状態変化の通知**: `aria-expanded`の変更をスクリーンリーダーが自動検知
+        - JavaScript実装例（アクセシビリティ対応版）:
+          ```javascript
+          document.querySelectorAll(".spoiler").forEach((el) => {
+            const toggle = () => {
+              const isRevealed = el.classList.toggle("revealed");
+              el.setAttribute("aria-expanded", isRevealed);
+            };
+            el.addEventListener("click", toggle);
+            el.addEventListener("keydown", (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                toggle();
+              }
+            });
+          });
+          ```
     - **セマンティックHTML要素**:
       - `&dfn(text);` - 定義される用語 → `<dfn>text</dfn>`
       - `&kbd(text);` - キーボード入力 → `<kbd>text</kbd>`
