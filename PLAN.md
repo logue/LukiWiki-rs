@@ -56,6 +56,121 @@
   - 基本リスト（順序なし `-`、順序付き `1.`）
   - リンク `[text](url)`
   - 画像 `![alt](url)`
+    - **メディアファイル自動検出**: 拡張子に基づいて`<picture>`/`<video>`/`<audio>`タグに自動変換 🚧 実装予定
+      - **設計方針: HTML5メディアタグ統一**
+        - 全てのメディアを最新のHTML5タグで処理（古いブラウザは考慮しない）
+        - 画像も`<picture>`タグで出力し、将来的な拡張性を確保
+        - `<video>`, `<audio>`, `<picture>`で統一的なメディア処理を実現
+      - **動画ファイル拡張子**（大文字小文字区別なし）:
+        - `.mp4`, `.webm`, `.ogv`, `.ogg`, `.mov`, `.avi`, `.mkv`, `.m4v`
+        - 出力:
+          ```html
+          <video controls>
+            <source src="url" type="video/ext" />
+            <track kind="captions" label="alt" />
+            お使いのブラウザは動画タグをサポートしていません。
+          </video>
+          ```
+        - `<source>`タグで明示的にMIMEタイプを指定（ブラウザの最適化）
+        - `type`属性: `video/mp4`, `video/webm`, `video/ogg` 等
+        - `alt`テキストは`<track>`タグのキャプションラベルとして使用
+        - `controls`属性はデフォルトで追加（再生/一時停止等のUI表示）
+      - **音声ファイル拡張子**（大文字小文字区別なし）:
+        - `.mp3`, `.wav`, `.ogg`, `.oga`, `.m4a`, `.aac`, `.flac`, `.opus`, `.weba`
+        - 出力:
+          ```html
+          <audio controls>
+            <source src="url" type="audio/ext" />
+            お使いのブラウザは音声タグをサポートしていません。
+          </audio>
+          ```
+        - `<source>`タグで明示的にMIMEタイプを指定
+        - `type`属性: `audio/mpeg`, `audio/wav`, `audio/ogg`, `audio/flac` 等
+        - `alt`テキストは音声タグでは意味をなさないため使用しない（代わりに前後の文脈で説明を推奨）
+        - `controls`属性はデフォルトで追加
+      - **画像ファイル**（上記以外）:
+        - `.jpg`, `.jpeg`, `.png`, `.gif`, `.svg`, `.webp`, `.avif`, `.bmp`, `.ico` 等
+        - **`<picture>`タグで統一的に出力**:
+          ```html
+          <picture>
+            <source srcset="url" type="image/ext" />
+            <img src="url" alt="alt" loading="lazy" />
+          </picture>
+          ```
+        - `<source>`タグで明示的にMIMEタイプを指定（例: `image/webp`, `image/avif`, `image/png`）
+        - `<img>`タグはフォールバック兼アクセシビリティ対応（`alt`属性必須）
+        - `loading="lazy"`属性を自動追加（パフォーマンス最適化、画面外の画像は遅延読み込み）
+        - **インライン表示への配慮**:
+          - `<picture>`タグは`inline`要素として扱われる（デフォルトの`display: inline`）
+          - 段落内での使用が可能: `テキスト![画像](image.png)テキスト`
+          - CSSでブロック化も可能: `.picture { display: block; }`
+          - 注: `<video>`/`<audio>`は`inline-block`として表示（デフォルト動作）
+        - **将来的な拡張性**:
+          - プラグインで複数の`<source>`タグを追加可能（レスポンシブ画像、フォーマットフォールバック）
+          - 例: `@media(avif,webp,fallback.jpg){![最新画像](image.avif)}`（画像）
+          - 例: `@media(autoplay,loop,muted){![動画](video.mp4)}`（動画）
+          - 例: `@media(preload=metadata){![音声](audio.mp3)}`（音声）
+          - メディアクエリ対応: `<source srcset="..." media="(min-width: 768px)" />`
+          - **`@media`プラグインの汎用性**:
+            - 全メディアタイプ（画像・動画・音声）に対応
+            - 複数ソース指定、属性追加、メディアクエリ等を統一的に処理
+            - 構文: `@media(option1,option2,...){![メディア](url)}`
+            - インライン型: `&media(option1,option2,...){![メディア](url)};`（段落内で使用）
+      - **MIMEタイプマッピング**:
+        - **動画**: mp4→video/mp4, webm→video/webm, ogv→video/ogg, ogg→video/ogg, mov→video/quicktime, avi→video/x-msvideo, mkv→video/x-matroska, m4v→video/x-m4v
+        - **音声**: mp3→audio/mpeg, wav→audio/wav, ogg→audio/ogg, oga→audio/ogg, m4a→audio/mp4, aac→audio/aac, flac→audio/flac, opus→audio/opus, weba→audio/webm
+        - **画像**: jpg/jpeg→image/jpeg, png→image/png, gif→image/gif, svg→image/svg+xml, webp→image/webp, avif→image/avif, bmp→image/bmp, ico→image/x-icon
+      - **実装方針**:
+        - comrakのAST後処理で`Image`ノードを検出
+        - URLの拡張子を正規表現で解析（クエリパラメータを除外）
+        - 拡張子に応じて適切なHTMLタグとMIMEタイプを生成
+        - 拡張子なし、または未知の拡張子: 画像として扱う（`<picture>`+`image/octet-stream`）
+      - **使用例**:
+        - `![プレゼンテーション](video.mp4)` → `<video controls><source src="video.mp4" type="video/mp4" />...</video>`
+        - `![BGM](audio.mp3)` → `<audio controls><source src="audio.mp3" type="audio/mpeg" />...</audio>`
+        - `![ロゴ](logo.png)` → `<picture><source srcset="logo.png" type="image/png" /><img src="logo.png" alt="ロゴ" loading="lazy" /></picture>`
+        - `![最新画像](image.avif)` → `<picture><source srcset="image.avif" type="image/avif" /><img src="image.avif" alt="最新画像" loading="lazy" /></picture>`
+        - `![動画](https://example.com/video.webm?v=1)` → `<video controls><source src="https://example.com/video.webm?v=1" type="video/webm" />...</video>`
+      - **アクセシビリティ**:
+        - 動画: キャプショントラック（`<track>`）を自動生成、ラベルは`alt`から取得
+        - 音声: 前後の文脈でコンテンツを説明（`alt`は無視）
+        - 画像: `<img>`タグの`alt`属性で代替テキストを提供（必須）
+        - フォールバックテキスト: 各メディアタグ内に挿入
+      - **パフォーマンス最適化**:
+        - 画像: `loading="lazy"`で遅延読み込み（ビューポート外の画像は読み込まない）
+        - 動画/音声: `preload="metadata"`を追加検討（メタデータのみ先読み）
+        - MIMEタイプ明示でブラウザの推測処理を省略
+      - **セキュリティ**:
+        - **URL sanitization（既存のsanitizer.rsで処理）**
+        - **ブラックリスト方式**: 明らかに危険なスキームのみをブロック
+        - **禁止するスキーム（XSS対策）**:
+          - `javascript:` - JavaScript実行による直接的なXSS攻撃
+          - `data:` - Base64エンコードされたスクリプト埋め込みによるXSS攻撃
+            - 例: `data:text/html,<script>alert('XSS')</script>`
+            - 例: `data:text/html;base64,PHNjcmlwdD5hbGVydCgnWFNTJyk8L3NjcmlwdD4=`
+          - `vbscript:` - VBScript実行によるXSS攻撃（IEレガシー対策）
+          - `file:` - ローカルファイルシステムアクセス（情報漏洩リスク）
+        - **許可するスキーム**: 上記以外の全てのスキーム
+          - HTTP/HTTPS: `http:`, `https:`
+          - メール/通信: `mailto:`, `tel:`, `sms:`
+          - FTP: `ftp:`, `ftps:`
+          - カスタムアプリスキーム: `spotify:`, `steam:`, `discord:`, `slack:`, `zoom:`, `ms-excel:`, `vscode:`, `secondlife:` 等
+          - その他: 相対パス、ルート相対パス、アンカー（`#`）
+        - **検出方法**: 正規表現で`^(javascript|data|vbscript|file):`を検出（大文字小文字区別なし）
+        - **処理**: 禁止スキームが検出された場合、URLを空文字列または安全なプレースホルダー（`#blocked-url`）に置換
+        - 外部サイトの自動再生を防ぐため`autoplay`属性は付与しない
+      - **拡張オプション**（将来的な検討事項）:
+        - **`@media`プラグインで追加属性・複数ソースを指定可能にする**
+        - **ブロック型** `@media(options){![メディア](url)}`:
+          - 動画: `@media(autoplay,loop,muted){![動画](video.mp4)}`
+          - 音声: `@media(preload=metadata){![音声](audio.mp3)}`
+          - 画像（レスポンシブ）: `@media(mobile.jpg,tablet.jpg,desktop.jpg){![レスポンシブ](desktop.jpg)}`
+          - 画像（フォーマット）: `@media(avif,webp,fallback.png){![最新画像](image.avif)}`
+        - **インライン型** `&media(options){![メディア](url)};`:
+          - 段落内での使用: `テキスト&media(width=100){![アイコン](icon.png)};テキスト`
+          - インライン動画: `説明文&media(autoplay,muted){![デモ](demo.mp4)};説明文`
+        - **汎用性**: 全メディアタイプ（画像・動画・音声）に対応
+        - Markdown構文の簡潔さを保つため、基本実装は最小限の属性のみ
   - 強調 `*italic*`、`**bold**`
 - [tests/commonmark.rs](tests/commonmark.rs)でCommonMark仕様テスト統合
 - 初期目標: コア機能で85%+パス率
