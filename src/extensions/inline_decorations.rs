@@ -71,6 +71,13 @@ static INLINE_WBR: Lazy<Regex> = Lazy::new(|| Regex::new(r"&wbr;").unwrap());
 /// Regex for LukiWiki strikethrough: %%text%% → <s>text</s>
 static LUKIWIKI_STRIKETHROUGH: Lazy<Regex> = Lazy::new(|| Regex::new(r"%%([^%]+)%%").unwrap());
 
+/// Regex for Discord-style spoiler: || text || → <span class="spoiler">text</span>
+static DISCORD_SPOILER: Lazy<Regex> = Lazy::new(|| Regex::new(r"\|\|([^|]+)\|\|").unwrap());
+
+/// Regex for UMD spoiler function: &spoiler(text); or &spoiler{text};
+static INLINE_SPOILER: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"&spoiler(?:\(([^)]+?)\)|\{([^}]+?)\});").unwrap());
+
 /// Map font size value to Bootstrap class or inline style
 fn map_font_size(value: &str) -> (bool, String) {
     // Check if value has unit (rem, em, px, etc.)
@@ -167,6 +174,22 @@ pub fn apply_inline_decorations(html: &str) -> String {
     // Apply %%text%% → <s>text</s> (LukiWiki strikethrough)
     result = LUKIWIKI_STRIKETHROUGH
         .replace_all(&result, "<s>$1</s>")
+        .to_string();
+
+    // Apply || text || → <span class="spoiler">text</span> (Discord spoiler)
+    result = DISCORD_SPOILER
+        .replace_all(
+            &result,
+            r#"<span class="spoiler" role="button" tabindex="0" aria-expanded="false">$1</span>"#,
+        )
+        .to_string();
+
+    // Apply &spoiler(text); or &spoiler{text}; → <span class="spoiler">text</span>
+    result = INLINE_SPOILER
+        .replace_all(&result, |caps: &regex::Captures| {
+            let text = caps.get(1).or_else(|| caps.get(2)).map_or("", |m| m.as_str());
+            format!(r#"<span class="spoiler" role="button" tabindex="0" aria-expanded="false">{}</span>"#, text)
+        })
         .to_string();
 
     // Apply &badge(type){text}; with optional link support
@@ -487,9 +510,38 @@ mod tests {
 
     #[test]
     fn test_color_custom_value() {
-        let input = "&color(#FF0000){Custom red};";
+        let input = "&color(#FF0000){Red text};";
         let output = apply_inline_decorations(input);
         assert!(output.contains("style=\"color: #FF0000\""));
+    }
+
+    #[test]
+    fn test_spoiler_discord_syntax() {
+        let input = "This is ||hidden text|| in a sentence.";
+        let output = apply_inline_decorations(input);
+        assert!(output.contains(r#"<span class="spoiler" role="button" tabindex="0" aria-expanded="false">hidden text</span>"#));
+    }
+
+    #[test]
+    fn test_spoiler_umd_function_parentheses() {
+        let input = "This is &spoiler(hidden text); in a sentence.";
+        let output = apply_inline_decorations(input);
+        assert!(output.contains(r#"<span class="spoiler" role="button" tabindex="0" aria-expanded="false">hidden text</span>"#));
+    }
+
+    #[test]
+    fn test_spoiler_umd_function_braces() {
+        let input = "This is &spoiler{hidden text}; in a sentence.";
+        let output = apply_inline_decorations(input);
+        assert!(output.contains(r#"<span class="spoiler" role="button" tabindex="0" aria-expanded="false">hidden text</span>"#));
+    }
+
+    #[test]
+    fn test_multiple_spoilers() {
+        let input = "||spoiler1|| and ||spoiler2|| and &spoiler{spoiler3};";
+        let output = apply_inline_decorations(input);
+        let spoiler_count = output.matches(r#"<span class="spoiler""#).count();
+        assert_eq!(spoiler_count, 3);
     }
 
     #[test]

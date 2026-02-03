@@ -8,11 +8,16 @@ CommonMark準拠のMarkdownパーサーに、Bootstrap 5統合、セマンティ
 - **ポストMarkdown**: Markdownを超える拡張機能
 - **Bootstrap 5統合**: デフォルトでBootstrapクラスを生成（Core UI互換）
 - **セマンティックHTML**: アクセシビリティとSEOに優しいHTML生成
-- **Definition Lists**: 用語辞典構文のサポート
+- **メディアファイル自動検出**: 画像構文で動画・音声を自動判別（`<picture>`, `<video>`, `<audio>`タグ生成）
+- **Discord風Spoilerタグ**: `|| text ||`構文でネタバレ防止表示
+- **テーブル拡張**: セル連結（colspan/rowspan）、配置プレフィックス（LEFT/CENTER/RIGHT/JUSTIFY）
+- **ブロック装飾**: 色指定（COLOR）、サイズ指定（SIZE）、配置制御（Bootstrap対応）
+- **インライン装飾**: バッジ、ルビ、上付き・下付き文字など豊富なセマンティック要素
+- **プラグインシステム**: インライン型（`&function(args){content};`）とブロック型（`@function(args){{ content }}`）
 - **UMD互換**: レガシーPHP実装との後方互換性
 - **フロントマターサポート**: YAML/TOML形式のメタデータ
 - **フットノート**: 標準的な脚注構文のサポート
-- **セキュリティ**: HTMLサニタイゼーションによるXSS対策
+- **セキュリティ**: HTMLサニタイゼーション、危険なURLスキーム（javascript:, data:等）のブロック
 - **WASM対応**: WebAssembly出力によるブラウザ実行
 - **拡張性**: プラグインシステムによる機能拡張
 
@@ -156,6 +161,92 @@ SIZE(1.5): COLOR(danger): RIGHT: 複合スタイル
   - 基本: `&badge(primary){New};` → `<span class="badge bg-primary">New</span>`
   - Pill: `&badge(success-pill){Active};` → `<span class="badge rounded-pill bg-success">Active</span>`
   - リンク: `&badge(danger){[Error](/error)};` → `<a href="/error" class="badge bg-danger">Error</a>`
+
+## メディアファイルのサポート
+
+Universal Markdownは、Markdownの画像構文`![alt](url)`を拡張し、拡張子に基づいて動画や音声ファイルを自動的に検出します。
+
+### 動画ファイル
+
+動画拡張子（`.mp4`, `.webm`, `.ogv`, `.mov`など）が検出されると、自動的に`<video>`タグを生成します：
+
+```markdown
+![プレゼンテーション](video.mp4)
+```
+
+出力：
+
+```html
+<video controls>
+  <source src="video.mp4" type="video/mp4" />
+  <track kind="captions" label="プレゼンテーション" />
+  お使いのブラウザは動画タグをサポートしていません。
+</video>
+```
+
+### 音声ファイル
+
+音声拡張子（`.mp3`, `.wav`, `.ogg`, `.flac`など）が検出されると、自動的に`<audio>`タグを生成します：
+
+```markdown
+![BGM](audio.mp3)
+```
+
+出力：
+
+```html
+<audio controls>
+  <source src="audio.mp3" type="audio/mpeg" />
+  お使いのブラウザは音声タグをサポートしていません。
+</audio>
+```
+
+### 画像ファイル
+
+画像拡張子（`.jpg`, `.png`, `.webp`, `.avif`など）の場合は、HTML5の`<picture>`タグを生成します：
+
+```markdown
+![ロゴ](logo.png)
+```
+
+出力：
+
+```html
+<picture>
+  <source srcset="logo.png" type="image/png" />
+  <img src="logo.png" alt="ロゴ" loading="lazy" />
+</picture>
+```
+
+`loading="lazy"`属性により、画面外の画像は遅延読み込みされます。
+
+## Spoilerタグ（ネタバレ防止）
+
+Discord風のSpoiler構文をサポートしています：
+
+```markdown
+このキャラは||実は悪役||だった。
+```
+
+または、UMD装飾関数形式：
+
+```markdown
+このキャラは&spoiler{実は悪役};だった。
+```
+
+出力：
+
+```html
+このキャラは<span
+  class="spoiler"
+  role="button"
+  tabindex="0"
+  aria-expanded="false"
+  >実は悪役</span
+>だった。
+```
+
+デフォルトではコンテンツが隠され、クリックまたはタップで表示されます。アクセシビリティのため、`role="button"`と`aria-expanded`属性が自動的に追加されます。
 
 ## テーブル
 
@@ -341,6 +432,31 @@ colspanとrowspanを組み合わせることもできます：
 - これらの拡張機能はUMD形式のテーブル（2行目が区切り線でない）でのみ動作します
 - UMDテーブルには自動的に`umd-table`クラスが付与されます
 - GFM形式（2行目が`|---|---|`の区切り線）のテーブルでは、標準のMarkdownテーブルとして処理されます
+
+### テーブル全体の配置
+
+UMDテーブルの前に配置プレフィックスを付けることで、テーブル全体の配置を制御できます：
+
+```markdown
+CENTER:
+| Header1 | Header2 |
+| Cell1 | Cell2 |
+```
+
+- `LEFT:`（改行）`| Header |` → テーブルを左寄せ（`w-auto`、デフォルト）
+- `CENTER:`（改行）`| Header |` → テーブルを中央寄せ（`w-auto mx-auto`）
+- `RIGHT:`（改行）`| Header |` → テーブルを右寄せ（`w-auto ms-auto me-0`）
+- `JUSTIFY:`（改行）`| Header |` → テーブルを100%幅に拡張（デフォルト）
+
+出力例（CENTER:）：
+
+```html
+<table class="table umd-table w-auto mx-auto">
+  ...
+</table>
+```
+
+**注意**：配置プレフィックスはUMDテーブル（区切り行なし）でのみサポートされ、Markdown標準テーブル（区切り行あり）では無視されます。ブロック型プラグイン（`@function(...)`）にも適用可能です。
 
 ### 定義リスト
 
@@ -578,6 +694,36 @@ cargo build --release
 ```bash
 wasm-pack build --target web
 ```
+
+## セキュリティ
+
+Universal Markdownは、複数のセキュリティ対策を実装しています：
+
+### URLスキームのブラックリスト
+
+危険なURLスキームを自動的にブロックします：
+
+- **javascript:** - JavaScript実行による直接的なXSS攻撃
+- **data:** - Base64エンコードされたスクリプト埋め込みによるXSS攻撃
+- **vbscript:** - VBScript実行によるXSS攻撃（IEレガシー対策）
+- **file:** - ローカルファイルシステムアクセス（情報漏洩リスク）
+
+許可されるスキーム：
+
+- HTTP/HTTPS: `http:`, `https:`
+- メール/通信: `mailto:`, `tel:`, `sms:`
+- FTP: `ftp:`, `ftps:`
+- カスタムアプリスキーム: `spotify:`, `steam:`, `discord:`, `slack:`, `zoom:`, `vscode:` 等
+
+### HTMLサニタイゼーション
+
+- ユーザー入力のHTMLタグは自動的にエスケープされます
+- XSS攻撃を防止するため、生のHTML入力は許可されません
+- セキュアなHTML生成のみが許可されます
+
+### メディアファイルの自動再生防止
+
+動画・音声タグには`autoplay`属性を付与しません。これにより、外部サイトの自動再生による予期しない動作を防止します。
 
 ## テスト
 

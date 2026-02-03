@@ -51,6 +51,7 @@ pub fn apply_extensions_with_headers(
     // Note: Plugins are handled in conflict_resolver::postprocess_conflicts
     result = conflict_resolver::postprocess_conflicts(&result, header_map);
     result = emphasis::apply_umd_emphasis(&result);
+    result = block_decorations::apply_block_placement(&result); // Apply block placement first
     result = block_decorations::apply_block_decorations(&result);
     result = inline_decorations::apply_inline_decorations(&result);
 

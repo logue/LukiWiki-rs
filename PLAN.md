@@ -3,7 +3,7 @@
 **プロジェクト概要**: Markdownを超える次世代マークアップ言語。CommonMark仕様テストを合理的にパス(75%+目標)しつつ、Bootstrap 5統合、セマンティックHTML、拡張可能なプラグインシステムを提供。UMDレガシー構文との後方互換性も維持。
 
 **作成日**: 2026年1月23日
-**最終更新**: 2026年2月1日
+**最終更新**: 2026年2月3日
 **Rustバージョン**: 1.93 (最新安定版)
 **ライセンス**: MIT
 
@@ -318,22 +318,22 @@
         - 注: Markdown標準テーブル（区切り行あり）ではサポートしない
       - **UMDブロック要素の配置まとめ**:
         - 適用対象: UMDテーブル（区切り行なし）、ブロック型プラグイン（`@function(...)`）
-        - `LEFT: <block>` → `w-auto`（コンテンツ幅、左寄せ）
-        - `CENTER: <block>` → `w-auto mx-auto`（コンテンツ幅、中央寄せ）
-        - `RIGHT: <block>` → `w-auto ms-auto me-0`（コンテンツ幅、右寄せ）
-        - `JUSTIFY: <block>` → `w-100`（100%幅）
+        - `LEFT:`（改行）`<block>` → `w-auto`（コンテンツ幅、左寄せ）
+        - `CENTER:`（改行）`<block>` → `w-auto mx-auto`（コンテンツ幅、中央寄せ）
+        - `RIGHT:`（改行）`<block>` → `w-auto ms-auto me-0`（コンテンツ幅、右寄せ）
+        - `JUSTIFY:`（改行）`<block>` → `w-100`（100%幅）
           - 注: テーブルは`table`クラスでデフォルト100%のため`w-100`不要、プラグインは明示的に追加
-        - `JUSTIFY: CENTER: <block>` → `w-100`（100%幅） + セル内/コンテンツ内テキストを中央揃え
+        - `JUSTIFY: CENTER:`（改行）`<block>` → `w-100`（100%幅） + セル内/コンテンツ内テキストを中央揃え
       - **UMDテーブルの配置例**:
-        - `LEFT: | Header |` → `<table class="table umd-table w-auto">...</table>`
-        - `CENTER: | Header |` → `<table class="table umd-table w-auto mx-auto">...</table>`
-        - `RIGHT: | Header |` → `<table class="table umd-table w-auto ms-auto me-0">...</table>`
-        - `JUSTIFY: | Header |` → `<table class="table umd-table">...</table>`（デフォルト100%）
+        - `LEFT:`（改行）`| Header |` → `<table class="table umd-table w-auto">...</table>`
+        - `CENTER:`（改行）`| Header |` → `<table class="table umd-table w-auto mx-auto">...</table>`
+        - `RIGHT:`（改行）`| Header |` → `<table class="table umd-table w-auto ms-auto me-0">...</table>`
+        - `JUSTIFY:`（改行）`| Header |` → `<table class="table umd-table">...</table>`（デフォルト100%）
       - **ブロック型プラグインの配置例**:
-        - `LEFT: @function(args)` → `<div class="umd-plugin umd-plugin-function w-auto" data-args='["args"]' data-tag="div" />`
-        - `CENTER: @function(args)` → `<div class="umd-plugin umd-plugin-function w-auto mx-auto" data-args='["args"]' data-tag="div" />`
-        - `RIGHT: @function(args)` → `<div class="umd-plugin umd-plugin-function w-auto ms-auto me-0" data-args='["args"]' data-tag="div" />`
-        - `JUSTIFY: @function(args)` → `<div class="umd-plugin umd-plugin-function w-100" data-args='["args"]' data-tag="div" />`
+        - `LEFT:`（改行）`@function(args)` → `<div class="umd-plugin umd-plugin-function w-auto" data-args='["args"]' data-tag="div" />`
+        - `CENTER:`（改行）`@function(args)` → `<div class="umd-plugin umd-plugin-function w-auto mx-auto" data-args='["args"]' data-tag="div" />`
+        - `RIGHT:`（改行）`@function(args)` → `<div class="umd-plugin umd-plugin-function w-auto ms-auto me-0" data-args='["args"]' data-tag="div" />`
+        - `JUSTIFY:`（改行）`@function(args)` → `<div class="umd-plugin umd-plugin-function w-100" data-args='["args"]' data-tag="div" />`
         - 注: プラグインのデフォルトタグ（`div`/`template`/セマンティックタグ）に関わらず、配置クラスを適用
       - **実装方針**:
         - 段落に対しては`text-justify`クラスを適用

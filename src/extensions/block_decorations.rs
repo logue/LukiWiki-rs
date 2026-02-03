@@ -112,6 +112,11 @@ static VALIGN_EXTRACT: Lazy<Regex> =
 static ALIGN_EXTRACT: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(JUSTIFY|RIGHT|CENTER|LEFT):").unwrap());
 
+// Block placement pattern for tables and plugins (must start on new line)
+static BLOCK_PLACEMENT: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"(?m)^(LEFT|CENTER|RIGHT|JUSTIFY):\n((?:\|[^\n]*\|(?:\n|$))+|@\w+(?:\([^)]*\))?\{[^}]*\})").unwrap()
+});
+
 /// Map font size value to Bootstrap class or inline style
 fn map_font_size(value: &str) -> String {
     // Check if value has unit (rem, em, px, etc.)
@@ -300,6 +305,46 @@ pub fn apply_block_decorations(html: &str) -> String {
     result.trim_end().to_string()
 }
 
+/// Apply block placement prefixes to tables and block plugins
+///
+/// Handles LEFT:/CENTER:/RIGHT:/JUSTIFY: prefixes followed by newline
+/// for UMD tables and block plugins (@function).
+///
+/// # Arguments
+///
+/// * `html` - The HTML content to process
+///
+/// # Returns
+///
+/// HTML with block placement applied (Bootstrap utility classes)
+pub fn apply_block_placement(html: &str) -> String {
+    BLOCK_PLACEMENT
+        .replace_all(html, |caps: &regex::Captures| {
+            let placement = &caps[1];
+            let content = &caps[2];
+
+            let wrapper_class = match placement {
+                "LEFT" => "w-auto", // Content width, left aligned
+                "CENTER" => "w-auto mx-auto", // Content width, centered
+                "RIGHT" => "w-auto ms-auto me-0", // Content width, right aligned
+                "JUSTIFY" => "w-100", // Full width
+                _ => "",
+            };
+
+            // Wrap table or plugin in div with appropriate class
+            if content.starts_with('|') {
+                // UMD table
+                format!("<div class=\"{}\">\n{}</div>", wrapper_class, content)
+            } else if content.starts_with('@') {
+                // Block plugin
+                format!("<div class=\"{}\">\n{}</div>", wrapper_class, content)
+            } else {
+                content.to_string()
+            }
+        })
+        .to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -370,5 +415,42 @@ mod tests {
         let output = apply_block_decorations(input);
         assert!(output.contains("text-truncate"));
         assert!(output.contains("text-end"));
+    }
+
+    #[test]
+    fn test_block_placement_left() {
+        let input = "LEFT:\n|Header|\n|Cell|";
+        let output = apply_block_placement(input);
+        assert!(output.contains(r#"<div class="w-auto">"#));
+        assert!(output.contains("|Header|"));
+    }
+
+    #[test]
+    fn test_block_placement_center() {
+        let input = "CENTER:\n|Header|\n|Cell|";
+        let output = apply_block_placement(input);
+        assert!(output.contains(r#"<div class="w-auto mx-auto">"#));
+    }
+
+    #[test]
+    fn test_block_placement_right() {
+        let input = "RIGHT:\n|Header|\n|Cell|";
+        let output = apply_block_placement(input);
+        assert!(output.contains(r#"<div class="w-auto ms-auto me-0">"#));
+    }
+
+    #[test]
+    fn test_block_placement_justify() {
+        let input = "JUSTIFY:\n|Header|\n|Cell|";
+        let output = apply_block_placement(input);
+        assert!(output.contains(r#"<div class="w-100">"#));
+    }
+
+    #[test]
+    fn test_block_placement_plugin() {
+        let input = "CENTER:\n@youtube{video_id}";
+        let output = apply_block_placement(input);
+        assert!(output.contains(r#"<div class="w-auto mx-auto">"#));
+        assert!(output.contains("@youtube"));
     }
 }

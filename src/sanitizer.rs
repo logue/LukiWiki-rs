@@ -2,8 +2,51 @@
 //!
 //! This module provides HTML sanitization functionality to prevent XSS attacks.
 //! It escapes all HTML tags in user input while preserving standard HTML entities.
+//! It also blocks dangerous URL schemes.
 
 use std::borrow::Cow;
+
+/// Sanitizes a URL by blocking dangerous schemes
+///
+/// # Arguments
+///
+/// * `url` - The URL to sanitize
+///
+/// # Returns
+///
+/// A sanitized URL or an empty string if the scheme is blocked
+///
+/// # Blocked Schemes
+///
+/// - `javascript:` - JavaScript execution XSS
+/// - `data:` - Base64 encoded script injection XSS
+/// - `vbscript:` - VBScript execution XSS (IE legacy)
+/// - `file:` - Local file system access (information leakage)
+///
+/// # Examples
+///
+/// ```
+/// use universal_markdown::sanitizer::sanitize_url;
+///
+/// assert_eq!(sanitize_url("https://example.com"), "https://example.com");
+/// assert_eq!(sanitize_url("javascript:alert(1)"), "#blocked-url");
+/// assert_eq!(sanitize_url("data:text/html,<script>alert(1)</script>"), "#blocked-url");
+/// assert_eq!(sanitize_url("spotify:track:123"), "spotify:track:123"); // Custom app schemes allowed
+/// ```
+pub fn sanitize_url(url: &str) -> Cow<'_, str> {
+    let url_lower = url.trim().to_lowercase();
+
+    // Check for dangerous schemes (case-insensitive)
+    if url_lower.starts_with("javascript:")
+        || url_lower.starts_with("data:")
+        || url_lower.starts_with("vbscript:")
+        || url_lower.starts_with("file:")
+    {
+        return Cow::Borrowed("#blocked-url");
+    }
+
+    Cow::Borrowed(url)
+}
 
 /// Sanitizes input text by escaping HTML tags while preserving HTML entities
 ///
@@ -233,5 +276,58 @@ mod tests {
         assert!(is_valid_entity("#x7B"));
         assert!(!is_valid_entity("invalid"));
         assert!(!is_valid_entity(""));
+    }
+
+    #[test]
+    fn test_sanitize_url_safe_schemes() {
+        assert_eq!(sanitize_url("https://example.com"), "https://example.com");
+        assert_eq!(sanitize_url("http://example.com"), "http://example.com");
+        assert_eq!(
+            sanitize_url("mailto:user@example.com"),
+            "mailto:user@example.com"
+        );
+        assert_eq!(sanitize_url("ftp://example.com"), "ftp://example.com");
+        assert_eq!(sanitize_url("/relative/path"), "/relative/path");
+        assert_eq!(sanitize_url("./relative"), "./relative");
+        assert_eq!(sanitize_url("#anchor"), "#anchor");
+    }
+
+    #[test]
+    fn test_sanitize_url_custom_app_schemes() {
+        assert_eq!(sanitize_url("spotify:track:123"), "spotify:track:123");
+        assert_eq!(sanitize_url("steam://open/game"), "steam://open/game");
+        assert_eq!(sanitize_url("discord://invite/123"), "discord://invite/123");
+        assert_eq!(
+            sanitize_url("slack://channel?id=123"),
+            "slack://channel?id=123"
+        );
+        assert_eq!(sanitize_url("zoom:meeting:123"), "zoom:meeting:123");
+        assert_eq!(sanitize_url("vscode://file/path"), "vscode://file/path");
+    }
+
+    #[test]
+    fn test_sanitize_url_blocked_schemes() {
+        assert_eq!(sanitize_url("javascript:alert(1)"), "#blocked-url");
+        assert_eq!(sanitize_url("JavaScript:alert(1)"), "#blocked-url");
+        assert_eq!(sanitize_url("JAVASCRIPT:alert(1)"), "#blocked-url");
+        assert_eq!(
+            sanitize_url("data:text/html,<script>alert(1)</script>"),
+            "#blocked-url"
+        );
+        assert_eq!(sanitize_url("Data:text/html,test"), "#blocked-url");
+        assert_eq!(sanitize_url("vbscript:msgbox(1)"), "#blocked-url");
+        assert_eq!(sanitize_url("VBScript:msgbox(1)"), "#blocked-url");
+        assert_eq!(sanitize_url("file:///etc/passwd"), "#blocked-url");
+        assert_eq!(sanitize_url("FILE:///C:/Windows"), "#blocked-url");
+    }
+
+    #[test]
+    fn test_sanitize_url_with_whitespace() {
+        assert_eq!(sanitize_url("  javascript:alert(1)  "), "#blocked-url");
+        assert_eq!(sanitize_url("\tdata:text/html,test\n"), "#blocked-url");
+        assert_eq!(
+            sanitize_url("  https://example.com  "),
+            "  https://example.com  "
+        );
     }
 }
