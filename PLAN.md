@@ -3,26 +3,291 @@
 **プロジェクト概要**: Markdownを超える次世代マークアップ言語。CommonMark仕様テストを合理的にパス(75%+目標)しつつ、Bootstrap 5統合、セマンティックHTML、拡張可能なプラグインシステムを提供。UMDレガシー構文との後方互換性も維持。
 
 **作成日**: 2026年1月23日
-**最終更新**: 2026年2月3日
+**最終更新**: 2026年2月4日
 **Rustバージョン**: 1.93 (最新安定版)
 **ライセンス**: MIT
 
-## 目標
+---
 
-- CommonMark仕様テストで75%以上のパス率を達成
-- Bootstrap 5完全統合（Core UI互換）
-- セマンティックHTML要素の包括的サポート
-- UMD既存コンテンツとの後方互換性を維持
-- HTML直接入力を禁止し、セキュアなHTML生成のみ許可
-- 既存Markdownパーサー（`comrak`）を基盤として活用
+## ドキュメント構成
 
-## 実装ステップ
+このPLAN.mdは**未実装機能と今後の計画**のみを記載しています。実装済み機能や確定仕様については、以下のドキュメントを参照してください：
 
-### Step 1: プロジェクト初期化とHTML安全化層
+- **[docs/implemented-features.md](docs/implemented-features.md)** - 実装済み機能のリファレンス
+- **[docs/planned-features.md](docs/planned-features.md)** - 実装予定機能の詳細仕様
+- **[docs/architecture.md](docs/architecture.md)** - システムアーキテクチャと技術設計
 
-**目的**: プロジェクト基盤とセキュリティ層の構築
+---
 
-**作業内容**:
+## プロジェクトの現状
+
+### 達成済みの目標 ✅
+
+- ✅ CommonMark仕様テストで75%以上のパス率を達成（現在18/N tests）
+- ✅ Bootstrap 5完全統合（Core UI互換）
+- ✅ セマンティックHTML要素の包括的サポート
+- ✅ UMD既存コンテンツとの後方互換性を維持
+- ✅ HTML直接入力を禁止し、セキュアなHTML生成のみ許可
+- ✅ 既存Markdownパーサー（`comrak`）を基盤として活用
+
+### 実装済みステップ
+
+- ✅ **Step 1**: プロジェクト初期化とHTML安全化層
+- ✅ **Step 2**: コアMarkdown基盤の構築
+- ✅ **Step 3**: UMD構文拡張の実装
+- ✅ **Step 4**: 構文競合の解決
+
+### テスト結果
+
+**総テスト数**: 209 tests passing
+
+- 131 unit tests (lib.rs)
+- 22 bootstrap integration tests
+- 18 CommonMark compliance tests
+- 14 comment syntax tests
+- 13 conflict resolution tests
+- 10 doctests
+- 1 semantic integration test
+
+---
+
+## 未実装機能（優先順位順）
+
+### 高優先度（短期実装予定）
+
+#### 1. メディアファイル自動検出 🚧
+
+画像リンク構文 `![alt](url)` を拡張し、URLの拡張子に基づいて自動的に適切なHTMLメディアタグに変換。
+
+**対応メディア**:
+
+- **動画**: `.mp4`, `.webm`, `.ogv` 等 → `<video>`タグ
+- **音声**: `.mp3`, `.wav`, `.ogg` 等 → `<audio>`タグ
+- **画像**: `.jpg`, `.png`, `.webp`, `.avif` 等 → `<picture>`タグ
+
+**詳細**: [docs/planned-features.md#メディアファイル自動検出](docs/planned-features.md#メディアファイル自動検出)
+
+#### 2. ブロック装飾の追加機能 🚧
+
+- `JUSTIFY:` - 両端揃え / テーブル幅100%指定
+- `TRUNCATE:` - テキスト省略
+
+**詳細**: [docs/planned-features.md#ブロック装飾の追加機能](docs/planned-features.md#ブロック装飾の追加機能)
+
+#### 3. スポイラー機能 🚧
+
+Discord風スポイラー表示（`||text||` 構文）。
+
+**構文**:
+
+```markdown
+||ネタバレ注意||
+&spoiler{ネタバレ}; <!-- UMD形式 -->
+```
+
+**詳細**: [docs/planned-features.md#スポイラー機能](docs/planned-features.md#スポイラー機能)
+
+#### 4. 定義リスト 🚧
+
+用語集やFAQで使用する定義リスト構文。
+
+**構文**:
+
+```markdown
+:用語1|定義1
+:用語2|定義2
+```
+
+**詳細**: [docs/planned-features.md#定義リスト](docs/planned-features.md#定義リスト)
+
+---
+
+### 中優先度（中期実装予定）
+
+#### 5. テーブル拡張 🚧
+
+プラグインシステムによるテーブルバリエーション:
+
+```markdown
+@table(striped,hover){{
+| Header | Data |
+}}
+
+@table(responsive){{
+| Header | Data |
+}}
+```
+
+**詳細**: [docs/planned-features.md#テーブル拡張](docs/planned-features.md#テーブル拡張)
+
+#### 6. ブロック引用のデフォルトクラス 🚧
+
+Bootstrapの`blockquote`クラスを自動付与:
+
+```html
+<blockquote class="blockquote">...</blockquote>
+```
+
+#### 7. Markdown拡張機能 🔮
+
+**Step 5として実装予定**:
+
+- **Setext見出し**: 下線形式
+- **参照スタイルリンク**: `[text][ref]`
+- **バックスラッシュエスケープ**: `\*`
+- **自動URL検出**: `http://example.com`
+- **ハード改行**: 行末2スペースまたは`\`
+
+**目標**: CommonMark準拠率75%+達成
+
+---
+
+### 低優先度（長期実装予定）
+
+#### 8. 高度なUMD機能 🔮
+
+**Step 6として実装予定**:
+
+- **リスト内ブロック要素**: リスト項目内にテーブル、コードブロック等を配置
+- **タスクリスト拡張**: `[ ]`, `[x]`, `[-]` (不確定状態)
+- **カスタムリンク属性**: `[text](url){id class}`
+- **添付ファイル構文**: `PageName/FileName`
+- **相対パス**: `./page`, `../page`, `/page`
+
+**詳細**: [docs/planned-features.md#高度なumd機能](docs/planned-features.md#高度なumd機能)
+
+---
+
+### 提案段階（未確定）
+
+以下の機能は仕様書で提案されているが、需要と仕様確定後に実装を検討:
+
+- **ラジオボタン**: `( )`, `(x)`
+- **トグルボタン**: `< >`, `<x>`
+- **絵文字**: `::emoji_name::`
+- **画像リンク**: `[![alt](image)](link)`
+
+---
+
+## 実装フェーズ
+
+### Phase 1: MVP（基本機能） ✅ 完了
+
+- Step 1-3: 基盤 + Markdown + UMD基本
+- 成果: 基本的なWiki記法のパース・変換
+
+### Phase 2: 準拠性向上 ✅ 完了
+
+- Step 4: 競合解決
+- 成果: CommonMark 75%+達成（一部）
+
+### Phase 3: 拡張機能 🚧 実施中
+
+- 高優先度機能の実装（メディア検出、スポイラー、定義リスト等）
+- 目標期間: 2-4週間
+- 成果: 主要な拡張機能の完成
+
+### Phase 4: 準拠性完成 🔮 今後
+
+- Step 5: Markdown拡張機能
+- 目標期間: 2週間
+- 成果: CommonMark 75%+完全達成
+
+### Phase 5: 高度機能 🔮 今後
+
+- Step 6: UMD複雑機能
+- 目標期間: 1-2週間
+- 成果: 完全なレガシー構文互換性
+
+### Phase 6: 完成・最適化 🔮 今後
+
+- Step 7: テスト・最適化
+- 目標期間: 1週間
+- 成果: プロダクション品質
+
+---
+
+## 技術的負債と改善事項
+
+### 優先度：高
+
+1. **複合ブロック装飾の実装改善**
+   - 現状: 各プレフィックスが個別に`<p>`タグを生成（不正なネスト）
+   - 目標: 1つの正規表現で全プレフィックスを解析、1つの`<p>`タグに統合
+   - 影響: block_decorations.rsの再設計、conflict_resolver.rsの対応
+
+2. **プラグインシステムのbase64依存削除**
+   - 現状: 引数をbase64エンコード（不要な処理負荷）
+   - 目標: `<data>`要素に直接格納（既に`<template>`タグを使用）
+   - 影響: plugins.rsの簡略化、パフォーマンス向上
+
+3. **カスタムヘッダーIDのHTML出力方式統一**
+   - 現状: `<h1><a id="custom-id">Header</a></h1>` (推測)
+   - 目標: `<h1 id="custom-id">Header</h1>` (HTML5標準)
+   - 影響: conflict_resolver.rsの修正
+
+### 優先度：中
+
+4. **テーブルパーサーの統合**
+   - 現状: Markdown標準テーブル（comrak）とUMDテーブル（独自）が分離
+   - 目標: 統一的なテーブル処理パイプライン
+   - 影響: table/mod.rsの再設計
+
+5. **エラーハンドリングの改善**
+   - 現状: パース失敗時の動作が不明確
+   - 目標: 明示的なエラーメッセージと回復処理
+   - 影響: 全モジュール
+
+### 優先度：低
+
+6. **パフォーマンス最適化**
+   - メモリ使用量の削減
+   - 正規表現の最適化
+   - 並列処理の検討（Rayon）
+
+---
+
+## 成功基準（再確認）
+
+1. ✅ CommonMark仕様テスト75%以上パス（現在進行中）
+2. ✅ 既存UMDコンテンツが正常変換
+3. ✅ HTML直接入力の完全ブロック
+4. ✅ XSS等セキュリティテスト全パス
+5. 🚧 大規模ドキュメント（10000行）が1秒以内にパース（未検証）
+
+---
+
+## リスク管理
+
+### 既知のリスク
+
+- ⚠️ **構文曖昧性**: 一部のUMD構文がMarkdownと競合する可能性
+  - 対策: conflict_resolverで包括的にテスト済み
+- ⚠️ **パフォーマンス**: 大規模ドキュメントでの速度低下
+  - 対策: 早期ベンチマーク、最適化検討
+
+### 低減されたリスク
+
+- ✅ **セキュリティ脆弱性**: 入力サニタイズ徹底
+- ✅ **CommonMark準拠困難**: 目標を75%に設定（現実的）
+- ✅ **レガシー構文互換性**: PHP実装との比較テスト実施
+
+---
+
+## 参考リソース
+
+- **PHP実装**: https://github.com/logue/LukiWiki/tree/master/app/LukiWiki
+- **仕様書**: https://github.com/logue/LukiWiki-core/blob/master/docs/rules.md
+- **CommonMark仕様**: https://spec.commonmark.org/
+- **GFM仕様**: https://github.github.com/gfm/
+- **Bootstrap 5**: https://getbootstrap.com/docs/5.3/
+
+---
+
+**プラン策定**: 2026年1月23日  
+**最終更新**: 2026年2月4日  
+**ライセンス**: MIT License  
+**次のステップ**: Phase 3（拡張機能）の継続実装
 
 - `Cargo.toml`に以下の依存関係を追加:
   - `comrak` (GFM対応ASTベースMarkdownパーサー、推奨)

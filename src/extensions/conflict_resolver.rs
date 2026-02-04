@@ -164,6 +164,115 @@ impl HeaderIdMap {
     }
 }
 
+/// Remove comment syntax from input
+///
+/// Removes single-line comments (`//`) and multi-line comments (`/* ... */`)
+/// while preserving comments inside code blocks and inline code.
+///
+/// # Arguments
+///
+/// * `input` - The raw markup input
+///
+/// # Returns
+///
+/// String with comments removed
+fn remove_comments(input: &str) -> String {
+    let mut result = String::new();
+    let mut in_code_block = false;
+    let mut code_fence_marker = "";
+    let mut in_multiline_comment = false;
+
+    for line in input.lines() {
+        // Detect code block start/end
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
+            if !in_code_block {
+                in_code_block = true;
+                code_fence_marker = if trimmed.starts_with("```") {
+                    "```"
+                } else {
+                    "~~~"
+                };
+            } else if trimmed.contains(code_fence_marker) {
+                in_code_block = false;
+            }
+            result.push_str(line);
+            result.push('\n');
+            continue;
+        }
+
+        // Inside code block: preserve everything
+        if in_code_block {
+            result.push_str(line);
+            result.push('\n');
+            continue;
+        }
+
+        // Process line outside code blocks
+        let mut processed_line = String::new();
+        let mut chars = line.chars().peekable();
+        let mut in_inline_code = false;
+        let mut prev_ch = '\0';
+
+        while let Some(ch) = chars.next() {
+            // Detect inline code
+            if ch == '`' {
+                in_inline_code = !in_inline_code;
+                processed_line.push(ch);
+                prev_ch = ch;
+                continue;
+            }
+
+            // Inside inline code: preserve everything
+            if in_inline_code {
+                processed_line.push(ch);
+                prev_ch = ch;
+                continue;
+            }
+
+            // Multi-line comment start: /*
+            if !in_multiline_comment && ch == '/' && chars.peek() == Some(&'*') {
+                in_multiline_comment = true;
+                chars.next(); // consume '*'
+                prev_ch = '*';
+                continue;
+            }
+
+            // Multi-line comment end: */
+            if in_multiline_comment && ch == '*' && chars.peek() == Some(&'/') {
+                in_multiline_comment = false;
+                chars.next(); // consume '/'
+                prev_ch = '/';
+                continue;
+            }
+
+            // Single-line comment start: //
+            // But NOT if preceded by ':' (URL scheme like https://)
+            if !in_multiline_comment && ch == '/' && chars.peek() == Some(&'/') && prev_ch != ':' {
+                // Skip rest of line
+                break;
+            }
+
+            // Normal character (not in comment)
+            if !in_multiline_comment {
+                processed_line.push(ch);
+                prev_ch = ch;
+            }
+        }
+
+        // Add processed line if not empty or if we're still in multiline comment
+        if !processed_line.trim().is_empty() {
+            result.push_str(&processed_line);
+            result.push('\n');
+        } else if !in_multiline_comment {
+            // Preserve empty lines (important for Markdown structure)
+            result.push('\n');
+        }
+    }
+
+    result
+}
+
 /// Pre-process input to resolve conflicts before Markdown parsing
 ///
 /// This function escapes or transforms syntax that would otherwise create
@@ -187,7 +296,9 @@ impl HeaderIdMap {
 /// // UMD blockquote is preserved
 /// ```
 pub fn preprocess_conflicts(input: &str) -> (String, HeaderIdMap) {
-    let mut result = input.to_string();
+    // Step 1: Remove comments before any other processing
+    let mut result = remove_comments(input);
+
     let mut header_map = HeaderIdMap::new();
     let mut heading_counter = 0;
 
